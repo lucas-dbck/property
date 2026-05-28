@@ -13,6 +13,7 @@ cd backend
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
+alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
@@ -39,6 +40,20 @@ The API will be available at:
 - `GET /inquiries/mine`
 
 The local database defaults to SQLite at `backend/property.db`.
+
+### Database migrations
+
+```bash
+cd backend
+alembic upgrade head
+```
+
+When the models change, create a migration with:
+
+```bash
+cd backend
+alembic revision --autogenerate -m "describe change"
+```
 
 ### Seed demo data
 

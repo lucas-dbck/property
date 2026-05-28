@@ -1,10 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .database import Base, engine
 from .routes import auth, inquiries, properties
-
-Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Property API",
