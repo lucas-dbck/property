@@ -1,0 +1,11 @@
+node_modules
+.npm-cache
+dist
+.env
+backend/.venv
+backend/.tmp
+backend/property.db
+__pycache__
+.pytest_cache
+.DS_Store
+*.log
