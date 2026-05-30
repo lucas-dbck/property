@@ -130,9 +130,18 @@ export function demoImportFromUrl(listingUrl: string): ImmowebImportResponse {
   const street = loc.streets[(h >> 3) % loc.streets.length]
   const houseNumber = (h % 180) + 1
 
+  // Parse the property type from the Immoweb URL path when present, e.g.
+  // /en/classified/{type}/for-sale/{locality}/{postal}/{id}
+  const segments = listingUrl.split("/").filter(Boolean)
+  const classifiedIdx = segments.indexOf("classified")
+  const rawType = classifiedIdx >= 0 ? (segments[classifiedIdx + 1] ?? "") : ""
+  const propertyType = /^[a-z-]+$/i.test(rawType) ? rawType.replace(/-/g, " ") : ""
+  const isHouse = /house|villa|townhouse|mansion|bungalow|chalet/i.test(propertyType)
+
   // Vary the property within realistic Belgian ranges, keyed off the URL hash.
-  const bedrooms = 1 + (h % 4) // 1–4
-  const livingArea = 38 + (h % 110) // 38–147 m²
+  // Houses skew larger / more bedrooms than apartments.
+  const bedrooms = isHouse ? 3 + (h % 3) : 1 + (h % 3) // houses 3–5, apartments 1–3
+  const livingArea = isHouse ? 110 + (h % 120) : 38 + (h % 90) // houses 110–229, apts 38–127 m²
   // Price scales loosely with size, plus per-listing variation.
   const purchasePrice = Math.round((155000 + livingArea * 2300 + (h % 60000)) / 1000) * 1000
   // Rent loosely tracks size; ~0.4–0.5% of price per month with variation.
@@ -151,7 +160,7 @@ export function demoImportFromUrl(listingUrl: string): ImmowebImportResponse {
       renovationBudget,
     },
     meta: {
-      title: `${bedrooms}-bedroom ${livingArea >= 90 ? "apartment" : "flat"} (sample data)`,
+      title: `${bedrooms}-bedroom ${propertyType || (isHouse ? "house" : "apartment")} (sample data)`,
       address: `${street} ${houseNumber}, ${loc.city}`,
       listingUrl,
     },

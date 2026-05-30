@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import type { InputValues, TemplateField } from "@/lib/api/types"
 
 // "imported" = value came from an Immoweb import and has NOT been reviewed/edited
@@ -32,6 +32,25 @@ export function useRoiInputs(fields: TemplateField[], initial?: InputValues) {
     ...(initial ?? {}),
   }))
   const [status, setStatus] = useState<Record<string, FieldStatus>>({})
+
+  // The template is fetched async, so on first render `fields` is often empty and
+  // the initializer above seeds nothing. When the template arrives, backfill any
+  // field defaults that are still missing — without overwriting user edits or
+  // imported values that are already present.
+  useEffect(() => {
+    if (fields.length === 0) return
+    setValues((prev) => {
+      let changed = false
+      const next = { ...prev }
+      for (const f of fields) {
+        if (f.defaultValue !== undefined && !(f.key in next)) {
+          next[f.key] = f.defaultValue
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [fields])
 
   const setField = useCallback((key: string, value: string | number | boolean) => {
     setValues((prev) => ({ ...prev, [key]: value }))
