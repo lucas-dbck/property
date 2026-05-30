@@ -54,7 +54,6 @@ def upgrade() -> None:
             {"slug": next_slug, "id": row.id},
         )
 
-    op.alter_column("properties", "slug", nullable=False)
     op.create_index(op.f("ix_properties_slug"), "properties", ["slug"], unique=True)
     op.create_index(op.f("ix_properties_listing_type"), "properties", ["listing_type"], unique=False)
 
