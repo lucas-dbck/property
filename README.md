@@ -41,6 +41,17 @@ The API will be available at:
 
 The local database defaults to SQLite at `backend/property.db`.
 
+### Environment variables
+
+Copy `backend/.env.example` to your deployment provider or local shell config and set:
+
+- `APP_NAME`: API display name
+- `ENVIRONMENT`: `development` or `production`
+- `DATABASE_URL`: SQLite locally, Postgres later
+- `SECRET_KEY`: long random secret for JWT signing
+- `ACCESS_TOKEN_EXPIRE_MINUTES`: login token lifetime
+- `CORS_ORIGINS`: comma-separated frontend URLs allowed to call the API
+
 ### Database migrations
 
 ```bash
