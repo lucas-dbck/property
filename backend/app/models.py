@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import Boolean, DateTime, Enum as SqlEnum, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, Enum as SqlEnum, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -19,6 +19,11 @@ class ListingStatus(str, Enum):
     draft = "draft"
     active = "active"
     archived = "archived"
+
+
+class ListingType(str, Enum):
+    sale = "sale"
+    rent = "rent"
 
 
 class User(Base):
@@ -42,6 +47,7 @@ class Property(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     title: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    slug: Mapped[str] = mapped_column(String(180), unique=True, nullable=False, index=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     address: Mapped[str] = mapped_column(String(240), nullable=False)
     city: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
@@ -51,7 +57,16 @@ class Property(Base):
     bathrooms: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     area_sqm: Mapped[float | None] = mapped_column(Float)
     property_type: Mapped[PropertyType] = mapped_column(SqlEnum(PropertyType), nullable=False, index=True)
+    listing_type: Mapped[ListingType] = mapped_column(SqlEnum(ListingType), default=ListingType.sale, nullable=False, index=True)
     status: Mapped[ListingStatus] = mapped_column(SqlEnum(ListingStatus), default=ListingStatus.active, nullable=False)
+    latitude: Mapped[float | None] = mapped_column(Float)
+    longitude: Mapped[float | None] = mapped_column(Float)
+    amenities: Mapped[str | None] = mapped_column(Text)
+    available_from: Mapped[datetime | None] = mapped_column(Date)
+    energy_score: Mapped[str | None] = mapped_column(String(40))
+    agent_name: Mapped[str | None] = mapped_column(String(120))
+    agent_phone: Mapped[str | None] = mapped_column(String(50))
+    agent_email: Mapped[str | None] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 

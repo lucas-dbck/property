@@ -2,7 +2,7 @@ from sqlalchemy import select
 
 from .auth import hash_password
 from .database import Base, SessionLocal, engine
-from .models import Property, PropertyImage, PropertyType, User
+from .models import ListingType, Property, PropertyImage, PropertyType, User
 
 
 DEMO_EMAIL = "demo@property.local"
@@ -33,6 +33,7 @@ def seed() -> None:
             Property(
                 owner_id=demo_user.id,
                 title="Bright Antwerp Apartment",
+                slug="bright-antwerp-apartment",
                 description="A warm two-bedroom apartment with natural light, a balcony, and easy access to the city center.",
                 address="Kasteelpleinstraat 12",
                 city="Antwerp",
@@ -42,6 +43,14 @@ def seed() -> None:
                 bathrooms=1,
                 area_sqm=86,
                 property_type=PropertyType.apartment,
+                listing_type=ListingType.sale,
+                latitude=51.213,
+                longitude=4.402,
+                amenities='["balcony", "lift", "public transport"]',
+                energy_score="B",
+                agent_name="Demo Agency",
+                agent_phone="+32 3 555 0101",
+                agent_email="agent@property.local",
                 images=[
                     PropertyImage(
                         url="https://images.unsplash.com/photo-1522708323590-d24dbb6b0267",
@@ -52,6 +61,7 @@ def seed() -> None:
             Property(
                 owner_id=demo_user.id,
                 title="Family House Near Ghent",
+                slug="family-house-near-ghent",
                 description="A calm family home with a garden, renovated kitchen, and three comfortable bedrooms.",
                 address="Lindenlaan 44",
                 city="Ghent",
@@ -61,6 +71,14 @@ def seed() -> None:
                 bathrooms=2,
                 area_sqm=142,
                 property_type=PropertyType.house,
+                listing_type=ListingType.sale,
+                latitude=51.054,
+                longitude=3.717,
+                amenities='["garden", "parking", "renovated kitchen"]',
+                energy_score="A",
+                agent_name="Demo Agency",
+                agent_phone="+32 9 555 0102",
+                agent_email="agent@property.local",
                 images=[
                     PropertyImage(
                         url="https://images.unsplash.com/photo-1568605114967-8130f3a36994",
@@ -71,6 +89,7 @@ def seed() -> None:
             Property(
                 owner_id=demo_user.id,
                 title="Compact Brussels Studio",
+                slug="compact-brussels-studio",
                 description="A practical studio close to public transport, ideal as a first home or investment property.",
                 address="Rue Haute 89",
                 city="Brussels",
@@ -80,6 +99,14 @@ def seed() -> None:
                 bathrooms=1,
                 area_sqm=38,
                 property_type=PropertyType.studio,
+                listing_type=ListingType.rent,
+                latitude=50.846,
+                longitude=4.352,
+                amenities='["furnished", "near metro"]',
+                energy_score="C",
+                agent_name="Demo Agency",
+                agent_phone="+32 2 555 0103",
+                agent_email="agent@property.local",
                 images=[
                     PropertyImage(
                         url="https://images.unsplash.com/photo-1505693416388-ac5ce068fe85",

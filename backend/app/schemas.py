@@ -1,8 +1,15 @@
 from datetime import datetime
+import json
+import re
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
-from .models import ListingStatus, PropertyType
+from .models import ListingStatus, ListingType, PropertyType
+
+
+def make_slug(value: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+    return slug or "property"
 
 
 class Token(BaseModel):
@@ -40,6 +47,7 @@ class PropertyImageRead(PropertyImageCreate):
 
 class PropertyBase(BaseModel):
     title: str = Field(min_length=3, max_length=160)
+    slug: str | None = Field(default=None, min_length=3, max_length=180)
     description: str = Field(min_length=10)
     address: str = Field(min_length=3, max_length=240)
     city: str = Field(min_length=2, max_length=120)
@@ -49,7 +57,26 @@ class PropertyBase(BaseModel):
     bathrooms: int = Field(default=0, ge=0)
     area_sqm: float | None = Field(default=None, gt=0)
     property_type: PropertyType
+    listing_type: ListingType = ListingType.sale
     status: ListingStatus = ListingStatus.active
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    amenities: list[str] = Field(default_factory=list)
+    available_from: datetime | None = None
+    energy_score: str | None = Field(default=None, max_length=40)
+    agent_name: str | None = Field(default=None, max_length=120)
+    agent_phone: str | None = Field(default=None, max_length=50)
+    agent_email: EmailStr | None = None
+
+    @field_validator("slug")
+    @classmethod
+    def normalize_slug(cls, value: str | None) -> str | None:
+        return make_slug(value) if value else value
+
+    @field_validator("amenities")
+    @classmethod
+    def normalize_amenities(cls, value: list[str]) -> list[str]:
+        return [item.strip() for item in value if item.strip()]
 
 
 class PropertyCreate(PropertyBase):
@@ -58,6 +85,7 @@ class PropertyCreate(PropertyBase):
 
 class PropertyUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=3, max_length=160)
+    slug: str | None = Field(default=None, min_length=3, max_length=180)
     description: str | None = Field(default=None, min_length=10)
     address: str | None = Field(default=None, min_length=3, max_length=240)
     city: str | None = Field(default=None, min_length=2, max_length=120)
@@ -67,7 +95,28 @@ class PropertyUpdate(BaseModel):
     bathrooms: int | None = Field(default=None, ge=0)
     area_sqm: float | None = Field(default=None, gt=0)
     property_type: PropertyType | None = None
+    listing_type: ListingType | None = None
     status: ListingStatus | None = None
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    amenities: list[str] | None = None
+    available_from: datetime | None = None
+    energy_score: str | None = Field(default=None, max_length=40)
+    agent_name: str | None = Field(default=None, max_length=120)
+    agent_phone: str | None = Field(default=None, max_length=50)
+    agent_email: EmailStr | None = None
+
+    @field_validator("slug")
+    @classmethod
+    def normalize_slug(cls, value: str | None) -> str | None:
+        return make_slug(value) if value else value
+
+    @field_validator("amenities")
+    @classmethod
+    def normalize_amenities(cls, value: list[str] | None) -> list[str] | None:
+        if value is None:
+            return None
+        return [item.strip() for item in value if item.strip()]
 
 
 class PropertyRead(PropertyBase):
@@ -78,6 +127,19 @@ class PropertyRead(PropertyBase):
     created_at: datetime
     updated_at: datetime
     images: list[PropertyImageRead] = Field(default_factory=list)
+
+    @field_validator("amenities", mode="before")
+    @classmethod
+    def parse_amenities(cls, value: str | list[str] | None) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return value
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            return []
+        return parsed if isinstance(parsed, list) else []
 
 
 class InquiryCreate(BaseModel):

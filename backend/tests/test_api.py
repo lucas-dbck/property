@@ -73,6 +73,14 @@ def create_property(token: str) -> dict:
             "bathrooms": 1,
             "area_sqm": 88,
             "property_type": "apartment",
+            "listing_type": "sale",
+            "latitude": 51.2194,
+            "longitude": 4.4025,
+            "amenities": ["balcony", "lift"],
+            "energy_score": "B",
+            "agent_name": "Local Agent",
+            "agent_phone": "+32 3 555 0101",
+            "agent_email": "agent@example.com",
             "images": [
                 {
                     "url": "https://example.com/image.jpg",
@@ -109,9 +117,12 @@ def test_create_and_filter_properties():
     property_item = create_property(token)
 
     assert property_item["title"] == "Sunny Antwerp Loft"
+    assert property_item["slug"] == "sunny-antwerp-loft"
+    assert property_item["listing_type"] == "sale"
+    assert property_item["amenities"] == ["balcony", "lift"]
     assert property_item["images"][0]["url"] == "https://example.com/image.jpg"
 
-    response = client.get("/properties", params={"city": "antwerp", "min_price": 300000})
+    response = client.get("/properties", params={"city": "antwerp", "min_price": 300000, "listing_type": "sale"})
 
     assert response.status_code == 200
     results = response.json()

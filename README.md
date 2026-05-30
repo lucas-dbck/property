@@ -41,6 +41,8 @@ The API will be available at:
 
 The local database defaults to SQLite at `backend/property.db`.
 
+Property listings support sale/rent type, slugs, map coordinates, amenities, availability, energy score, and agent contact fields.
+
 ### Environment variables
 
 Copy `backend/.env.example` to your deployment provider or local shell config and set:
