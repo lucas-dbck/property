@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from ..analysis import calculate_roi
 from ..auth import get_current_user
 from ..database import get_db
+from ..importers.immoweb import import_immoweb_listing
 from ..models import ImportSource, InvestmentOpportunity, User
 from ..schemas import (
     ImmowebImportRequest,
@@ -105,18 +106,28 @@ def import_immoweb_opportunity(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> InvestmentOpportunityRead:
-    imported_data = {
-        "source_url": str(payload.url),
-        "extraction_status": "pending",
-    }
+    source_url = str(payload.url)
+    try:
+        imported_data = import_immoweb_listing(source_url)
+        extraction_confidence = imported_data.get("extraction_confidence", 0.0)
+    except Exception as exc:
+        imported_data = {
+            "source_url": source_url,
+            "extraction_status": "failed",
+            "error": str(exc),
+            "extracted_fields": [],
+            "missing_fields": [],
+        }
+        extraction_confidence = 0.0
+
     opportunity = InvestmentOpportunity(
         owner_id=current_user.id,
         source=ImportSource.immoweb,
-        source_url=str(payload.url),
-        title=payload.title or "Imported Immoweb opportunity",
+        source_url=source_url,
+        title=payload.title or imported_data.get("title") or "Imported Immoweb opportunity",
         imported_data=json.dumps(imported_data),
         user_overrides=json.dumps(payload.user_overrides),
-        extraction_confidence=0.0,
+        extraction_confidence=extraction_confidence,
         notes=payload.notes,
     )
     db.add(opportunity)

@@ -54,6 +54,8 @@ Investment opportunities store imported listing data separately from user overri
 
 Opportunity analysis estimates rent when needed and returns gross yield, net yield, cash flow, cash-on-cash return, and ROI score.
 
+Immoweb import fetches the listing URL and extracts available structured fields into `imported_data`; users can still correct anything through `user_overrides`.
+
 ### Environment variables
 
 Copy `backend/.env.example` to your deployment provider or local shell config and set:

@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT))
 
 from app.database import Base, get_db
 from app.main import app
+from app.routes import opportunities
 
 
 engine = create_engine(
@@ -206,9 +207,27 @@ def test_create_and_update_investment_opportunity():
     assert updated["final_data"]["renovation_cost"] == 20000
 
 
-def test_create_immoweb_import_placeholder():
+def test_create_immoweb_import(monkeypatch):
     register_user()
     token = login_user()
+
+    def fake_import_immoweb_listing(url: str) -> dict:
+        return {
+            "source_url": url,
+            "extraction_status": "success",
+            "title": "Extracted apartment",
+            "city": "Antwerp",
+            "postcode": "2000",
+            "price": 300000,
+            "area_sqm": 80,
+            "bedrooms": 2,
+            "energy_score": "B",
+            "extraction_confidence": 0.75,
+            "extracted_fields": ["city", "postcode", "price", "area_sqm", "bedrooms", "energy_score"],
+            "missing_fields": ["bathrooms", "property_type"],
+        }
+
+    monkeypatch.setattr(opportunities, "import_immoweb_listing", fake_import_immoweb_listing)
 
     response = client.post(
         "/opportunities/imports/immoweb",
@@ -223,7 +242,8 @@ def test_create_immoweb_import_placeholder():
     assert response.status_code == 201
     opportunity = response.json()
     assert opportunity["source"] == "immoweb"
-    assert opportunity["imported_data"]["extraction_status"] == "pending"
+    assert opportunity["imported_data"]["extraction_status"] == "success"
+    assert opportunity["imported_data"]["price"] == 300000
     assert opportunity["final_data"]["renovation_cost"] == 15000
 
 
