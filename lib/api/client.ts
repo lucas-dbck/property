@@ -113,7 +113,7 @@ export const api = {
   importImmoweb: (listingUrl: string) =>
     withFallback(
       () => request<ImmowebImportResponse>("/opportunities/imports/immoweb", { method: "POST", body: { url: listingUrl } }),
-      () => demoApi.importImmoweb(),
+      () => demoApi.importImmoweb(listingUrl),
     ),
 
   // ----- Analyze -----

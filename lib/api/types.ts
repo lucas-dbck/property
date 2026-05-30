@@ -44,6 +44,9 @@ export type InputValues = Record<string, string | number | boolean>
 export interface ImmowebImportResponse {
   // Values to prefill the form with. Treated as STARTING values only.
   values: InputValues
+  // True when this came from the preview demo fallback (backend unreachable),
+  // not a real listing import. Lets the UI warn the user the numbers are sample data.
+  demo?: boolean
   // Optional metadata about the source listing.
   meta?: {
     title?: string

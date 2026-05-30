@@ -77,7 +77,8 @@ export function demoAnalyze(values: InputValues): AnalyzeResponse {
   const cashOnCash = cashInvested > 0 ? (annualCashFlow / cashInvested) * 100 : 0
   const paybackYears = annualCashFlow > 0 ? cashInvested / annualCashFlow : 0
 
-  const sentimentFor = (v: number) => (v > 0 ? "positive" : v < 0 ? "negative" : "neutral") as const
+  const sentimentFor = (v: number): "positive" | "negative" | "neutral" =>
+    v > 0 ? "positive" : v < 0 ? "negative" : "neutral"
 
   return {
     verdict: {
@@ -103,20 +104,58 @@ export function demoAnalyze(values: InputValues): AnalyzeResponse {
   }
 }
 
-export const DEMO_IMMOWEB_IMPORT: ImmowebImportResponse = {
-  values: {
-    purchasePrice: 269000,
-    livingArea: 88,
-    bedrooms: 2,
-    epcScore: "D",
-    monthlyRent: 1095,
-    renovationBudget: 22000,
-  },
-  meta: {
-    title: "Bright 2-bedroom apartment with terrace",
-    address: "Rue de la Loi 120, 1040 Etterbeek",
-    listingUrl: "https://www.immoweb.be/en/classified/example",
-  },
+// Deterministically derive plausible, *varied* listing values from the pasted
+// URL so the preview doesn't always return the same apartment. This is sample
+// data only — the real backend returns the actual scraped listing.
+function hashString(s: string): number {
+  let h = 2166136261
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  return Math.abs(h)
+}
+
+const DEMO_CITIES = [
+  { city: "1040 Etterbeek", streets: ["Rue de la Loi", "Avenue d'Auderghem", "Chaussée de Wavre"] },
+  { city: "1000 Brussels", streets: ["Quai aux Briques", "Rue Antoine Dansaert", "Boulevard Anspach"] },
+  { city: "2000 Antwerp", streets: ["Nationalestraat", "Mechelsesteenweg", "Kloosterstraat"] },
+  { city: "9000 Ghent", streets: ["Veldstraat", "Korenmarkt", "Sint-Pietersnieuwstraat"] },
+  { city: "3000 Leuven", streets: ["Naamsestraat", "Bondgenotenlaan", "Tiensestraat"] },
+]
+
+export function demoImportFromUrl(listingUrl: string): ImmowebImportResponse {
+  const h = hashString(listingUrl || "fallback")
+  const loc = DEMO_CITIES[h % DEMO_CITIES.length]
+  const street = loc.streets[(h >> 3) % loc.streets.length]
+  const houseNumber = (h % 180) + 1
+
+  // Vary the property within realistic Belgian ranges, keyed off the URL hash.
+  const bedrooms = 1 + (h % 4) // 1–4
+  const livingArea = 38 + (h % 110) // 38–147 m²
+  // Price scales loosely with size, plus per-listing variation.
+  const purchasePrice = Math.round((155000 + livingArea * 2300 + (h % 60000)) / 1000) * 1000
+  // Rent loosely tracks size; ~0.4–0.5% of price per month with variation.
+  const monthlyRent = Math.round((450 + livingArea * 9 + (h % 350)) / 5) * 5
+  const epcScore = ["A", "B", "C", "D", "E", "F"][h % 6]
+  const renovationBudget = [0, 5000, 12000, 22000, 35000][(h >> 5) % 5]
+
+  return {
+    demo: true,
+    values: {
+      purchasePrice,
+      livingArea,
+      bedrooms,
+      epcScore,
+      monthlyRent,
+      renovationBudget,
+    },
+    meta: {
+      title: `${bedrooms}-bedroom ${livingArea >= 90 ? "apartment" : "flat"} (sample data)`,
+      address: `${street} ${houseNumber}, ${loc.city}`,
+      listingUrl,
+    },
+  }
 }
 
 function withDefaults(overrides: InputValues): InputValues {
@@ -153,7 +192,7 @@ const demoStore: Opportunity[] = [
 
 export const demoApi = {
   getTemplate: (): InputTemplate => DEMO_TEMPLATE,
-  importImmoweb: (): ImmowebImportResponse => DEMO_IMMOWEB_IMPORT,
+  importImmoweb: (listingUrl: string): ImmowebImportResponse => demoImportFromUrl(listingUrl),
   analyze: (values: InputValues): AnalyzeResponse => demoAnalyze(values),
   listOpportunities: (): Opportunity[] => demoStore,
   createOpportunity: (input: Partial<Opportunity>): Opportunity => {

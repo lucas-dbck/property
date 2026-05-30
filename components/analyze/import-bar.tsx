@@ -21,7 +21,15 @@ export function ImportBar({ onImported }: { onImported: (result: ImmowebImportRe
       const result = await api.importImmoweb(url.trim())
       onImported(result)
       const count = Object.keys(result.values).length
-      toast.success(`Imported ${count} field${count === 1 ? "" : "s"} as starting values — review before trusting ROI.`)
+      if (result.demo) {
+        toast.warning(
+          `Backend unavailable — prefilled ${count} field${count === 1 ? "" : "s"} with sample data. Edit every value before trusting ROI.`,
+        )
+      } else {
+        toast.success(
+          `Imported ${count} field${count === 1 ? "" : "s"} as starting values — review before trusting ROI.`,
+        )
+      }
     } catch {
       toast.error("Could not import that listing. Check the URL and try again.")
     } finally {

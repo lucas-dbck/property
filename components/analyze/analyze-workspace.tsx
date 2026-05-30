@@ -105,7 +105,7 @@ export function AnalyzeWorkspace() {
     }
   }
 
-  const loading = templateLoading || (editId && existingLoading)
+  const loading = templateLoading || Boolean(editId && existingLoading)
 
   return (
     <div>
