@@ -209,6 +209,23 @@ class OpportunityAnalysisRead(BaseModel):
     analysis: dict
 
 
+class OpportunityInputField(BaseModel):
+    key: str
+    label: str
+    group: str
+    value_type: str
+    editable: bool = True
+    imported: bool = False
+    required_for_roi: bool = False
+    description: str
+    example: str | int | float | list[str] | None = None
+    default: str | int | float | list[str] | None = None
+
+
+class OpportunityInputTemplateRead(BaseModel):
+    fields: list[OpportunityInputField]
+
+
 class OpportunityComparisonItem(BaseModel):
     rank: int
     opportunity_id: int

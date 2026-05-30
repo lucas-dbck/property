@@ -291,6 +291,22 @@ def test_analyze_investment_opportunity():
     assert "roi_score" in body["analysis"]
 
 
+def test_read_opportunity_input_template():
+    response = client.get("/opportunities/input-template")
+
+    assert response.status_code == 200
+    body = response.json()
+    field_keys = {field["key"] for field in body["fields"]}
+    assert "purchase_price" in field_keys
+    assert "monthly_rent" in field_keys
+    assert "energy_score" in field_keys
+    assert "renovation_cost" in field_keys
+    assert "vacancy_rate" in field_keys
+    purchase_price = next(field for field in body["fields"] if field["key"] == "purchase_price")
+    assert purchase_price["imported"] is True
+    assert purchase_price["required_for_roi"] is True
+
+
 def test_compare_investment_opportunities():
     register_user()
     token = login_user()
