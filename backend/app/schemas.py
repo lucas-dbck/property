@@ -2,9 +2,9 @@ from datetime import datetime
 import json
 import re
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl, field_validator
 
-from .models import ListingStatus, ListingType, PropertyType
+from .models import ImportSource, ListingStatus, ListingType, PropertyType
 
 
 def make_slug(value: str) -> str:
@@ -159,3 +159,45 @@ class InquiryRead(BaseModel):
     email: EmailStr
     message: str
     created_at: datetime
+
+
+class InvestmentOpportunityCreate(BaseModel):
+    source: ImportSource = ImportSource.manual
+    source_url: HttpUrl | None = None
+    title: str = Field(min_length=3, max_length=180)
+    imported_data: dict = Field(default_factory=dict)
+    user_overrides: dict = Field(default_factory=dict)
+    extraction_confidence: float | None = Field(default=None, ge=0, le=1)
+    notes: str | None = None
+
+
+class ImmowebImportRequest(BaseModel):
+    url: HttpUrl
+    title: str | None = Field(default=None, min_length=3, max_length=180)
+    user_overrides: dict = Field(default_factory=dict)
+    notes: str | None = None
+
+
+class InvestmentOpportunityUpdate(BaseModel):
+    source: ImportSource | None = None
+    source_url: HttpUrl | None = None
+    title: str | None = Field(default=None, min_length=3, max_length=180)
+    imported_data: dict | None = None
+    user_overrides: dict | None = None
+    extraction_confidence: float | None = Field(default=None, ge=0, le=1)
+    notes: str | None = None
+
+
+class InvestmentOpportunityRead(BaseModel):
+    id: int
+    owner_id: int
+    source: ImportSource
+    source_url: str | None
+    title: str
+    imported_data: dict
+    user_overrides: dict
+    final_data: dict
+    extraction_confidence: float | None
+    notes: str | None
+    created_at: datetime
+    updated_at: datetime

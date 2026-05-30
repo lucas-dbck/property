@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
-from .routes import auth, inquiries, properties
+from .routes import auth, inquiries, opportunities, properties
 
 settings = get_settings()
 settings.validate_for_runtime()
@@ -24,6 +24,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(properties.router)
 app.include_router(inquiries.router)
+app.include_router(opportunities.router)
 
 
 @app.get("/health", tags=["system"])

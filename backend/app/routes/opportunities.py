@@ -1,0 +1,167 @@
+import json
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from ..auth import get_current_user
+from ..database import get_db
+from ..models import ImportSource, InvestmentOpportunity, User
+from ..schemas import (
+    ImmowebImportRequest,
+    InvestmentOpportunityCreate,
+    InvestmentOpportunityRead,
+    InvestmentOpportunityUpdate,
+)
+
+router = APIRouter(prefix="/opportunities", tags=["opportunities"])
+
+
+def parse_json_object(value: str) -> dict[str, Any]:
+    parsed = json.loads(value or "{}")
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def merge_opportunity_data(opportunity: InvestmentOpportunity) -> dict[str, Any]:
+    final_data = parse_json_object(opportunity.imported_data)
+    final_data.update(parse_json_object(opportunity.user_overrides))
+    return final_data
+
+
+def serialize_opportunity(opportunity: InvestmentOpportunity) -> InvestmentOpportunityRead:
+    imported_data = parse_json_object(opportunity.imported_data)
+    user_overrides = parse_json_object(opportunity.user_overrides)
+    return InvestmentOpportunityRead(
+        id=opportunity.id,
+        owner_id=opportunity.owner_id,
+        source=opportunity.source,
+        source_url=opportunity.source_url,
+        title=opportunity.title,
+        imported_data=imported_data,
+        user_overrides=user_overrides,
+        final_data={**imported_data, **user_overrides},
+        extraction_confidence=opportunity.extraction_confidence,
+        notes=opportunity.notes,
+        created_at=opportunity.created_at,
+        updated_at=opportunity.updated_at,
+    )
+
+
+def get_opportunity_or_404(db: Session, opportunity_id: int, owner_id: int) -> InvestmentOpportunity:
+    opportunity = db.scalar(
+        select(InvestmentOpportunity).where(
+            InvestmentOpportunity.id == opportunity_id,
+            InvestmentOpportunity.owner_id == owner_id,
+        )
+    )
+    if opportunity is None:
+        raise HTTPException(status_code=404, detail="Investment opportunity not found")
+    return opportunity
+
+
+@router.get("", response_model=list[InvestmentOpportunityRead])
+def list_opportunities(
+    source: ImportSource | None = None,
+    limit: int = Query(default=25, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[InvestmentOpportunityRead]:
+    query = select(InvestmentOpportunity).where(InvestmentOpportunity.owner_id == current_user.id)
+    if source is not None:
+        query = query.where(InvestmentOpportunity.source == source)
+    query = query.order_by(InvestmentOpportunity.created_at.desc()).limit(limit).offset(offset)
+    return [serialize_opportunity(item) for item in db.scalars(query)]
+
+
+@router.post("", response_model=InvestmentOpportunityRead, status_code=status.HTTP_201_CREATED)
+def create_opportunity(
+    payload: InvestmentOpportunityCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> InvestmentOpportunityRead:
+    opportunity = InvestmentOpportunity(
+        owner_id=current_user.id,
+        source=payload.source,
+        source_url=str(payload.source_url) if payload.source_url else None,
+        title=payload.title,
+        imported_data=json.dumps(payload.imported_data),
+        user_overrides=json.dumps(payload.user_overrides),
+        extraction_confidence=payload.extraction_confidence,
+        notes=payload.notes,
+    )
+    db.add(opportunity)
+    db.commit()
+    db.refresh(opportunity)
+    return serialize_opportunity(opportunity)
+
+
+@router.post("/imports/immoweb", response_model=InvestmentOpportunityRead, status_code=status.HTTP_201_CREATED)
+def import_immoweb_opportunity(
+    payload: ImmowebImportRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> InvestmentOpportunityRead:
+    imported_data = {
+        "source_url": str(payload.url),
+        "extraction_status": "pending",
+    }
+    opportunity = InvestmentOpportunity(
+        owner_id=current_user.id,
+        source=ImportSource.immoweb,
+        source_url=str(payload.url),
+        title=payload.title or "Imported Immoweb opportunity",
+        imported_data=json.dumps(imported_data),
+        user_overrides=json.dumps(payload.user_overrides),
+        extraction_confidence=0.0,
+        notes=payload.notes,
+    )
+    db.add(opportunity)
+    db.commit()
+    db.refresh(opportunity)
+    return serialize_opportunity(opportunity)
+
+
+@router.get("/{opportunity_id}", response_model=InvestmentOpportunityRead)
+def read_opportunity(
+    opportunity_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> InvestmentOpportunityRead:
+    return serialize_opportunity(get_opportunity_or_404(db, opportunity_id, current_user.id))
+
+
+@router.patch("/{opportunity_id}", response_model=InvestmentOpportunityRead)
+def update_opportunity(
+    opportunity_id: int,
+    payload: InvestmentOpportunityUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> InvestmentOpportunityRead:
+    opportunity = get_opportunity_or_404(db, opportunity_id, current_user.id)
+    updates = payload.model_dump(exclude_unset=True)
+    if "source_url" in updates and updates["source_url"] is not None:
+        updates["source_url"] = str(updates["source_url"])
+    if "imported_data" in updates and updates["imported_data"] is not None:
+        updates["imported_data"] = json.dumps(updates["imported_data"])
+    if "user_overrides" in updates and updates["user_overrides"] is not None:
+        updates["user_overrides"] = json.dumps(updates["user_overrides"])
+
+    for field, value in updates.items():
+        setattr(opportunity, field, value)
+
+    db.commit()
+    db.refresh(opportunity)
+    return serialize_opportunity(opportunity)
+
+
+@router.delete("/{opportunity_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_opportunity(
+    opportunity_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    opportunity = get_opportunity_or_404(db, opportunity_id, current_user.id)
+    db.delete(opportunity)
+    db.commit()

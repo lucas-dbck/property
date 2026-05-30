@@ -165,3 +165,63 @@ def test_create_public_inquiry():
 
     assert response.status_code == 201
     assert response.json()["email"] == "buyer@example.com"
+
+
+def test_create_and_update_investment_opportunity():
+    register_user()
+    token = login_user()
+
+    response = client.post(
+        "/opportunities",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "title": "Antwerp ROI candidate",
+            "source": "manual",
+            "imported_data": {
+                "city": "Antwerp",
+                "purchase_price": 300000,
+                "estimated_rent": 1250,
+            },
+            "user_overrides": {
+                "renovation_cost": 25000,
+            },
+            "extraction_confidence": 0.8,
+        },
+    )
+
+    assert response.status_code == 201
+    opportunity = response.json()
+    assert opportunity["final_data"]["purchase_price"] == 300000
+    assert opportunity["final_data"]["renovation_cost"] == 25000
+
+    update_response = client.patch(
+        f"/opportunities/{opportunity['id']}",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"user_overrides": {"estimated_rent": 1350, "renovation_cost": 20000}},
+    )
+
+    assert update_response.status_code == 200
+    updated = update_response.json()
+    assert updated["final_data"]["estimated_rent"] == 1350
+    assert updated["final_data"]["renovation_cost"] == 20000
+
+
+def test_create_immoweb_import_placeholder():
+    register_user()
+    token = login_user()
+
+    response = client.post(
+        "/opportunities/imports/immoweb",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "url": "https://www.immoweb.be/en/classified/apartment/for-sale/antwerp/2000/123456",
+            "title": "Immoweb candidate",
+            "user_overrides": {"renovation_cost": 15000},
+        },
+    )
+
+    assert response.status_code == 201
+    opportunity = response.json()
+    assert opportunity["source"] == "immoweb"
+    assert opportunity["imported_data"]["extraction_status"] == "pending"
+    assert opportunity["final_data"]["renovation_cost"] == 15000

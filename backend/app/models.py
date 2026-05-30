@@ -26,6 +26,12 @@ class ListingType(str, Enum):
     rent = "rent"
 
 
+class ImportSource(str, Enum):
+    manual = "manual"
+    immoweb = "immoweb"
+    other = "other"
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -37,6 +43,10 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     properties: Mapped[list["Property"]] = relationship(back_populates="owner", cascade="all, delete-orphan")
+    investment_opportunities: Mapped[list["InvestmentOpportunity"]] = relationship(
+        back_populates="owner",
+        cascade="all, delete-orphan",
+    )
     favorites: Mapped[list["Favorite"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     inquiries: Mapped[list["Inquiry"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
@@ -86,6 +96,24 @@ class PropertyImage(Base):
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     property: Mapped["Property"] = relationship(back_populates="images")
+
+
+class InvestmentOpportunity(Base):
+    __tablename__ = "investment_opportunities"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    source: Mapped[ImportSource] = mapped_column(SqlEnum(ImportSource), default=ImportSource.manual, nullable=False, index=True)
+    source_url: Mapped[str | None] = mapped_column(String(1000), index=True)
+    title: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
+    imported_data: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
+    user_overrides: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
+    extraction_confidence: Mapped[float | None] = mapped_column(Float)
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    owner: Mapped["User"] = relationship(back_populates="investment_opportunities")
 
 
 class Favorite(Base):

@@ -38,10 +38,18 @@ The API will be available at:
 - `DELETE /properties/{property_id}/favorite`
 - `POST /inquiries`
 - `GET /inquiries/mine`
+- `GET /opportunities`
+- `POST /opportunities`
+- `POST /opportunities/imports/immoweb`
+- `GET /opportunities/{opportunity_id}`
+- `PATCH /opportunities/{opportunity_id}`
+- `DELETE /opportunities/{opportunity_id}`
 
 The local database defaults to SQLite at `backend/property.db`.
 
 Property listings support sale/rent type, slugs, map coordinates, amenities, availability, energy score, and agent contact fields.
+
+Investment opportunities store imported listing data separately from user overrides, then return a merged `final_data` object for rent estimation and ROI analysis.
 
 ### Environment variables
 
