@@ -37,6 +37,28 @@ export class ApiError extends Error {
 // Thrown internally to signal we should use the demo fallback.
 class BackendUnavailable extends Error {}
 
+// --- Demo-mode tracking ------------------------------------------------------
+// Flips to true the first time any request falls back to demo data, so the UI
+// can show a persistent "not connected to backend" banner. Components subscribe
+// via subscribeDemoMode / read the current value with isDemoMode.
+let demoMode = false
+const demoModeListeners = new Set<() => void>()
+
+export function isDemoMode(): boolean {
+  return demoMode
+}
+
+export function subscribeDemoMode(listener: () => void): () => void {
+  demoModeListeners.add(listener)
+  return () => demoModeListeners.delete(listener)
+}
+
+function markDemoMode() {
+  if (demoMode) return
+  demoMode = true
+  demoModeListeners.forEach((l) => l())
+}
+
 interface RequestOptions {
   method?: string
   body?: unknown
@@ -83,7 +105,10 @@ async function withFallback<T>(real: () => Promise<T>, demo: () => T): Promise<T
   try {
     return await real()
   } catch (err) {
-    if (err instanceof BackendUnavailable) return demo()
+    if (err instanceof BackendUnavailable) {
+      markDemoMode()
+      return demo()
+    }
     throw err
   }
 }

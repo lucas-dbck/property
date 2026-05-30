@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { DemoModeBanner } from "@/components/demo-mode-banner"
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -118,6 +119,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <MobileNav />
           </div>
         </div>
+        <DemoModeBanner />
         <main className="flex-1">{children}</main>
       </div>
     </div>
