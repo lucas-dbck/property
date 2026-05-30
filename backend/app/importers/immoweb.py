@@ -61,6 +61,10 @@ def extract_immoweb_listing(html: str, source_url: str) -> dict[str, Any]:
     for item in json_objects:
         merge_json_ld_fields(extracted, item)
 
+    listing_objects = extract_embedded_listing_objects(html)
+    for item in listing_objects:
+        merge_listing_object_fields(extracted, item)
+
     merge_regex_fields(extracted, html)
 
     expected_fields = ["price", "city", "postcode", "property_type", "bedrooms", "bathrooms", "area_sqm", "energy_score"]
@@ -100,6 +104,51 @@ def flatten_json_ld(value: Any) -> list[dict[str, Any]]:
     return []
 
 
+def extract_embedded_listing_objects(html: str) -> list[dict[str, Any]]:
+    objects = []
+    for script in extract_script_json_candidates(html):
+        try:
+            parsed = json.loads(script)
+        except json.JSONDecodeError:
+            continue
+        objects.extend(find_listing_like_objects(parsed))
+    return objects
+
+
+def extract_script_json_candidates(html: str) -> list[str]:
+    candidates = []
+    next_data_match = re.search(
+        r'<script[^>]+id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>',
+        html,
+        re.I | re.S,
+    )
+    if next_data_match:
+        candidates.append(unescape(next_data_match.group(1)).strip())
+
+    for match in re.finditer(r"window\.__INITIAL_STATE__\s*=\s*({.*?})\s*</script>", html, re.I | re.S):
+        candidates.append(match.group(1).strip())
+
+    return candidates
+
+
+def find_listing_like_objects(value: Any) -> list[dict[str, Any]]:
+    found = []
+    if isinstance(value, dict):
+        keys = {normalize_key(key) for key in value}
+        if keys & {"price", "bedroomcount", "bedrooms", "roomcount", "surface", "livablesurface", "nethabitablesurface"}:
+            found.append(value)
+        for child in value.values():
+            found.extend(find_listing_like_objects(child))
+    elif isinstance(value, list):
+        for child in value:
+            found.extend(find_listing_like_objects(child))
+    return found
+
+
+def normalize_key(value: Any) -> str:
+    return re.sub(r"[^a-z0-9]", "", str(value).lower())
+
+
 def merge_json_ld_fields(extracted: dict[str, Any], item: dict[str, Any]) -> None:
     address = item.get("address")
     offers = item.get("offers")
@@ -122,14 +171,115 @@ def merge_json_ld_fields(extracted: dict[str, Any], item: dict[str, Any]) -> Non
         extracted["images"] = normalize_images(image)
 
 
+def merge_listing_object_fields(extracted: dict[str, Any], item: dict[str, Any]) -> None:
+    field_map = flatten_mapping(item)
+
+    set_first(extracted, field_map, "title", ["title", "name"])
+    set_first(extracted, field_map, "price", ["price", "mainprice", "saleprice", "transactionprice"])
+    set_first(extracted, field_map, "currency", ["currency", "pricecurrency"])
+    set_first(extracted, field_map, "city", ["locality", "city", "municipality", "addresslocality"])
+    set_first(extracted, field_map, "postcode", ["postalcode", "postcode", "zip"])
+    set_first(extracted, field_map, "address", ["street", "streetaddress", "address"])
+    set_first(extracted, field_map, "property_type", ["propertytype", "type", "subtype"])
+    set_first(extracted, field_map, "bedrooms", ["bedroomcount", "bedrooms", "numberofbedrooms"])
+    set_first(extracted, field_map, "bathrooms", ["bathroomcount", "bathrooms", "numberofbathrooms"])
+    set_first(
+        extracted,
+        field_map,
+        "area_sqm",
+        ["livablesurface", "netHabitablesurface", "habitableSurface", "surface", "area", "size"],
+    )
+    set_first(extracted, field_map, "energy_score", ["epcscore", "energyscore", "energyclass", "peb"])
+    set_first(extracted, field_map, "condition", ["condition", "buildingcondition", "renovationlevel"])
+
+    if not extracted.get("images"):
+        images = collect_image_urls(item)
+        if images:
+            extracted["images"] = images
+
+
+def flatten_mapping(value: Any, prefix: str = "") -> dict[str, Any]:
+    flattened = {}
+    if isinstance(value, dict):
+        for key, child in value.items():
+            normalized = normalize_key(key)
+            if child not in (None, "", []):
+                flattened.setdefault(normalized, child)
+            if isinstance(child, (dict, list)):
+                flattened.update(flatten_mapping(child, normalized))
+    elif isinstance(value, list):
+        for child in value:
+            if isinstance(child, (dict, list)):
+                flattened.update(flatten_mapping(child, prefix))
+    return flattened
+
+
+def set_first(extracted: dict[str, Any], field_map: dict[str, Any], target: str, keys: list[str]) -> None:
+    if extracted.get(target) not in (None, "", []):
+        return
+    for key in keys:
+        value = field_map.get(normalize_key(key))
+        normalized_value = normalize_value(target, value)
+        if normalized_value not in (None, "", []):
+            extracted[target] = normalized_value
+            return
+
+
+def normalize_value(target: str, value: Any) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        for key in ["value", "amount", "mainValue", "label", "name"]:
+            if key in value:
+                return normalize_value(target, value[key])
+        return None
+    if isinstance(value, list):
+        return None
+    if target in {"price", "bedrooms", "bathrooms", "area_sqm"}:
+        return as_number(value)
+    if target == "energy_score":
+        match = re.search(r"\b(A\+|A|B|C|D|E|F|G)\b", str(value), re.I)
+        return match.group(1).upper() if match else None
+    return str(value).strip()
+
+
+def collect_image_urls(value: Any) -> list[str]:
+    urls = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            normalized_key = normalize_key(key)
+            if normalized_key in {"url", "src", "smallurl", "mediumurl", "largeurl"} and isinstance(child, str):
+                if child.startswith("http") and child not in urls:
+                    urls.append(child)
+            elif isinstance(child, (dict, list)):
+                urls.extend(url for url in collect_image_urls(child) if url not in urls)
+    elif isinstance(value, list):
+        for child in value:
+            urls.extend(url for url in collect_image_urls(child) if url not in urls)
+    return urls[:12]
+
+
 def merge_regex_fields(extracted: dict[str, Any], html: str) -> None:
     text = unescape(strip_html(html))
     compact = " ".join(text.split())
 
-    extracted.setdefault("price", first_number_match(compact, [r"EUR\s*([0-9.\s]+)", r"([0-9.\s]+)\s*EUR"]))
-    extracted.setdefault("bedrooms", first_number_match(compact, [r"([0-9]+)\s+bedroom", r"Bedrooms?\s*([0-9]+)"]))
-    extracted.setdefault("bathrooms", first_number_match(compact, [r"([0-9]+)\s+bathroom", r"Bathrooms?\s*([0-9]+)"]))
-    extracted.setdefault("area_sqm", first_number_match(compact, [r"([0-9]+)\s*m2"]))
+    if not extracted.get("price"):
+        extracted["price"] = first_number_match(
+            compact,
+            [
+                r"(?:Price|Asking price|Sale price)\s*(?:EUR|\u20ac)?\s*([0-9][0-9.\s,]*)",
+                r"(?:EUR|\u20ac)\s*([0-9][0-9.\s,]*)\s*(?:asking|sale|price)",
+            ],
+        )
+    if not extracted.get("bedrooms"):
+        extracted["bedrooms"] = first_number_match(compact, [r"(?:Bedrooms?|Bedroom\(s\))\s*([0-9]+)"])
+    if not extracted.get("bathrooms"):
+        extracted["bathrooms"] = first_number_match(compact, [r"(?:Bathrooms?|Bathroom\(s\))\s*([0-9]+)"])
+    if not extracted.get("area_sqm"):
+        extracted["area_sqm"] = first_number_match(
+            compact,
+            [r"(?:Living area|Habitable surface|Surface|Area)\s*([0-9]+)\s*(?:m2|m\u00b2|sqm)"],
+        )
 
     energy_match = re.search(r"\bEPC\b[^A-F+]*([A-F][+]?)\b|\bEnergy score\b[^A-F+]*([A-F][+]?)\b", compact, re.I)
     if energy_match and not extracted.get("energy_score"):
