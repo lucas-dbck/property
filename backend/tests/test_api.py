@@ -225,3 +225,47 @@ def test_create_immoweb_import_placeholder():
     assert opportunity["source"] == "immoweb"
     assert opportunity["imported_data"]["extraction_status"] == "pending"
     assert opportunity["final_data"]["renovation_cost"] == 15000
+
+
+def test_analyze_investment_opportunity():
+    register_user()
+    token = login_user()
+
+    create_response = client.post(
+        "/opportunities",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "title": "ROI analysis candidate",
+            "imported_data": {
+                "city": "Antwerp",
+                "area_sqm": 80,
+                "bedrooms": 2,
+                "purchase_price": 300000,
+                "energy_score": "B",
+                "amenities": ["balcony", "parking"],
+            },
+            "user_overrides": {
+                "renovation_cost": 25000,
+                "down_payment": 75000,
+                "interest_rate": 3.5,
+                "loan_years": 25,
+                "annual_taxes": 1200,
+                "annual_insurance": 650,
+                "vacancy_rate": 0.05,
+            },
+        },
+    )
+    assert create_response.status_code == 201
+    opportunity_id = create_response.json()["id"]
+
+    analysis_response = client.get(
+        f"/opportunities/{opportunity_id}/analysis",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert analysis_response.status_code == 200
+    body = analysis_response.json()
+    assert body["opportunity_id"] == opportunity_id
+    assert body["analysis"]["estimated_monthly_rent"] > 0
+    assert body["analysis"]["gross_yield"] > 0
+    assert "roi_score" in body["analysis"]

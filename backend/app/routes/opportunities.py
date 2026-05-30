@@ -5,12 +5,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ..analysis import calculate_roi
 from ..auth import get_current_user
 from ..database import get_db
 from ..models import ImportSource, InvestmentOpportunity, User
 from ..schemas import (
     ImmowebImportRequest,
     InvestmentOpportunityCreate,
+    OpportunityAnalysisRead,
     InvestmentOpportunityRead,
     InvestmentOpportunityUpdate,
 )
@@ -130,6 +132,21 @@ def read_opportunity(
     current_user: User = Depends(get_current_user),
 ) -> InvestmentOpportunityRead:
     return serialize_opportunity(get_opportunity_or_404(db, opportunity_id, current_user.id))
+
+
+@router.get("/{opportunity_id}/analysis", response_model=OpportunityAnalysisRead)
+def analyze_opportunity(
+    opportunity_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> OpportunityAnalysisRead:
+    opportunity = get_opportunity_or_404(db, opportunity_id, current_user.id)
+    final_data = merge_opportunity_data(opportunity)
+    return OpportunityAnalysisRead(
+        opportunity_id=opportunity.id,
+        final_data=final_data,
+        analysis=calculate_roi(final_data),
+    )
 
 
 @router.patch("/{opportunity_id}", response_model=InvestmentOpportunityRead)

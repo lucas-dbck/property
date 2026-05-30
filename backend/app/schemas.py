@@ -201,3 +201,9 @@ class InvestmentOpportunityRead(BaseModel):
     notes: str | None
     created_at: datetime
     updated_at: datetime
+
+
+class OpportunityAnalysisRead(BaseModel):
+    opportunity_id: int
+    final_data: dict
+    analysis: dict
