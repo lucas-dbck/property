@@ -207,3 +207,24 @@ class OpportunityAnalysisRead(BaseModel):
     opportunity_id: int
     final_data: dict
     analysis: dict
+
+
+class OpportunityComparisonItem(BaseModel):
+    rank: int
+    opportunity_id: int
+    title: str
+    source: ImportSource
+    source_url: str | None
+    roi_score: int
+    estimated_monthly_rent: float
+    gross_yield: float
+    net_yield: float
+    monthly_cash_flow: float
+    annual_cash_flow: float
+    cash_on_cash_return: float
+    total_investment: float
+
+
+class OpportunityComparisonRead(BaseModel):
+    count: int
+    items: list[OpportunityComparisonItem]

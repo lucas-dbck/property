@@ -13,6 +13,8 @@ from ..models import ImportSource, InvestmentOpportunity, User
 from ..schemas import (
     ImmowebImportRequest,
     InvestmentOpportunityCreate,
+    OpportunityComparisonItem,
+    OpportunityComparisonRead,
     OpportunityAnalysisRead,
     InvestmentOpportunityRead,
     InvestmentOpportunityUpdate,
@@ -134,6 +136,55 @@ def import_immoweb_opportunity(
     db.commit()
     db.refresh(opportunity)
     return serialize_opportunity(opportunity)
+
+
+@router.get("/compare", response_model=OpportunityComparisonRead)
+def compare_opportunities(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> OpportunityComparisonRead:
+    opportunities = list(
+        db.scalars(
+            select(InvestmentOpportunity)
+            .where(InvestmentOpportunity.owner_id == current_user.id)
+            .order_by(InvestmentOpportunity.created_at.desc())
+        )
+    )
+    analyzed_items = []
+    for opportunity in opportunities:
+        analysis = calculate_roi(merge_opportunity_data(opportunity))
+        analyzed_items.append((opportunity, analysis))
+
+    analyzed_items.sort(
+        key=lambda item: (
+            item[1]["roi_score"],
+            item[1]["monthly_cash_flow"],
+            item[1]["net_yield"],
+            item[1]["cash_on_cash_return"],
+        ),
+        reverse=True,
+    )
+
+    items = [
+        OpportunityComparisonItem(
+            rank=index + 1,
+            opportunity_id=opportunity.id,
+            title=opportunity.title,
+            source=opportunity.source,
+            source_url=opportunity.source_url,
+            roi_score=analysis["roi_score"],
+            estimated_monthly_rent=analysis["estimated_monthly_rent"],
+            gross_yield=analysis["gross_yield"],
+            net_yield=analysis["net_yield"],
+            monthly_cash_flow=analysis["monthly_cash_flow"],
+            annual_cash_flow=analysis["annual_cash_flow"],
+            cash_on_cash_return=analysis["cash_on_cash_return"],
+            total_investment=analysis["total_investment"],
+        )
+        for index, (opportunity, analysis) in enumerate(analyzed_items)
+    ]
+
+    return OpportunityComparisonRead(count=len(items), items=items)
 
 
 @router.get("/{opportunity_id}", response_model=InvestmentOpportunityRead)

@@ -41,6 +41,7 @@ The API will be available at:
 - `GET /opportunities`
 - `POST /opportunities`
 - `POST /opportunities/imports/immoweb`
+- `GET /opportunities/compare`
 - `GET /opportunities/{opportunity_id}`
 - `GET /opportunities/{opportunity_id}/analysis`
 - `PATCH /opportunities/{opportunity_id}`
@@ -55,6 +56,8 @@ Investment opportunities store imported listing data separately from user overri
 Opportunity analysis estimates rent when needed and returns gross yield, net yield, cash flow, cash-on-cash return, and ROI score.
 
 Immoweb import fetches the listing URL and extracts available structured fields into `imported_data`; users can still correct anything through `user_overrides`.
+
+Opportunity comparison ranks saved opportunities by ROI score, cash flow, yield, and cash-on-cash return.
 
 ### Environment variables
 

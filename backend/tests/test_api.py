@@ -289,3 +289,46 @@ def test_analyze_investment_opportunity():
     assert body["analysis"]["estimated_monthly_rent"] > 0
     assert body["analysis"]["gross_yield"] > 0
     assert "roi_score" in body["analysis"]
+
+
+def test_compare_investment_opportunities():
+    register_user()
+    token = login_user()
+
+    for title, price, rent in [
+        ("Better Antwerp deal", 250000, 1450),
+        ("Weaker Brussels deal", 420000, 1500),
+    ]:
+        response = client.post(
+            "/opportunities",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "title": title,
+                "imported_data": {
+                    "city": "Antwerp",
+                    "area_sqm": 80,
+                    "purchase_price": price,
+                    "monthly_rent": rent,
+                    "energy_score": "B",
+                },
+                "user_overrides": {
+                    "renovation_cost": 10000,
+                    "annual_taxes": 1000,
+                    "annual_insurance": 600,
+                    "vacancy_rate": 0.04,
+                },
+            },
+        )
+        assert response.status_code == 201
+
+    compare_response = client.get(
+        "/opportunities/compare",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert compare_response.status_code == 200
+    body = compare_response.json()
+    assert body["count"] == 2
+    assert body["items"][0]["rank"] == 1
+    assert body["items"][0]["title"] == "Better Antwerp deal"
+    assert body["items"][0]["roi_score"] >= body["items"][1]["roi_score"]
