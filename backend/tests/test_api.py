@@ -307,6 +307,33 @@ def test_read_opportunity_input_template():
     assert purchase_price["required_for_roi"] is True
 
 
+def test_quick_analyze_opportunity_inputs():
+    response = client.post(
+        "/opportunities/analyze",
+        json={
+            "data": {
+                "city": "Antwerp",
+                "area_sqm": 80,
+                "purchase_price": 300000,
+                "energy_score": "B",
+                "amenities": ["balcony", "parking"],
+                "renovation_cost": 20000,
+                "down_payment": 75000,
+                "interest_rate": 3.5,
+                "loan_years": 25,
+                "vacancy_rate": 0.05,
+            }
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["final_data"]["purchase_price"] == 300000
+    assert body["analysis"]["estimated_monthly_rent"] > 0
+    assert body["analysis"]["total_investment"] > 300000
+    assert "roi_score" in body["analysis"]
+
+
 def test_compare_investment_opportunities():
     register_user()
     token = login_user()

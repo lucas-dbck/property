@@ -42,6 +42,7 @@ The API will be available at:
 - `POST /opportunities`
 - `POST /opportunities/imports/immoweb`
 - `GET /opportunities/input-template`
+- `POST /opportunities/analyze`
 - `GET /opportunities/compare`
 - `GET /opportunities/{opportunity_id}`
 - `GET /opportunities/{opportunity_id}/analysis`
@@ -59,6 +60,8 @@ Opportunity analysis estimates rent when needed and returns gross yield, net yie
 Immoweb import fetches the listing URL and extracts available structured fields into `imported_data`; users can still correct anything through `user_overrides`.
 
 The opportunity input template tells a frontend which ROI fields exist, whether they can be imported, and which values the user should be able to edit.
+
+Quick opportunity analysis lets a frontend calculate ROI from draft inputs before saving an opportunity.
 
 Opportunity comparison ranks saved opportunities by ROI score, cash flow, yield, and cash-on-cash return.
 

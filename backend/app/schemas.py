@@ -209,6 +209,15 @@ class OpportunityAnalysisRead(BaseModel):
     analysis: dict
 
 
+class OpportunityQuickAnalysisRequest(BaseModel):
+    data: dict = Field(default_factory=dict)
+
+
+class OpportunityQuickAnalysisRead(BaseModel):
+    final_data: dict
+    analysis: dict
+
+
 class OpportunityInputField(BaseModel):
     key: str
     label: str

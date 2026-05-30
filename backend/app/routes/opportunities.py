@@ -18,6 +18,8 @@ from ..schemas import (
     OpportunityAnalysisRead,
     OpportunityInputField,
     OpportunityInputTemplateRead,
+    OpportunityQuickAnalysisRead,
+    OpportunityQuickAnalysisRequest,
     InvestmentOpportunityRead,
     InvestmentOpportunityUpdate,
 )
@@ -306,6 +308,15 @@ def read_opportunity_input_template() -> OpportunityInputTemplateRead:
                 default=25,
             ),
         ]
+    )
+
+
+@router.post("/analyze", response_model=OpportunityQuickAnalysisRead)
+def analyze_opportunity_inputs(payload: OpportunityQuickAnalysisRequest) -> OpportunityQuickAnalysisRead:
+    final_data = payload.data
+    return OpportunityQuickAnalysisRead(
+        final_data=final_data,
+        analysis=calculate_roi(final_data),
     )
 
 
