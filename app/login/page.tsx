@@ -33,11 +33,17 @@ export default function LoginPage() {
     try {
       if (mode === "login") {
         await login(email, password)
+        toast.success("Welcome back")
+        router.replace("/dashboard")
       } else {
         await register(email, password, name || undefined)
+        // Registration does not sign the user in. Send them to the sign-in tab
+        // with their email prefilled so they can log in to their own page.
+        toast.success("Account created — please sign in to continue")
+        setMode("login")
+        setPassword("")
+        setName("")
       }
-      toast.success(mode === "login" ? "Welcome back" : "Account created")
-      router.replace("/dashboard")
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Something went wrong. Please try again."
       toast.error(message)

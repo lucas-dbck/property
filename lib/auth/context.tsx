@@ -11,6 +11,7 @@ interface AuthContextValue {
   user: AuthUser | null
   isLoading: boolean
   login: (email: string, password: string) => Promise<void>
+  /** Creates the account but does NOT start a session — the user must sign in afterwards. */
   register: (email: string, password: string, name?: string) => Promise<void>
   logout: () => void
 }
@@ -51,10 +52,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const register = useCallback(
     async (email: string, password: string, name?: string) => {
-      const res = await api.register({ email, password, name })
-      persist(res.user, res.token)
+      // Create the account only. We intentionally do NOT persist the token here so
+      // the user is required to sign in afterwards to reach their personalized page.
+      await api.register({ email, password, name })
     },
-    [persist],
+    [],
   )
 
   const logout = useCallback(() => {
