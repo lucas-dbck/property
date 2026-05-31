@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from . import models  # noqa: F401
 from .config import get_settings
+from .database import Base, engine
 from .routes import auth, inquiries, opportunities, properties
 
 settings = get_settings()
@@ -20,6 +22,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+def create_database_tables() -> None:
+    Base.metadata.create_all(bind=engine)
+
 
 app.include_router(auth.router)
 app.include_router(properties.router)
