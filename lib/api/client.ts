@@ -119,8 +119,9 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
     return await parseResponse<T>(res, allowDemoFallback)
   } catch (err) {
     if (err instanceof BackendUnavailable) throw err
+    if (err instanceof ApiError) throw err
     if (allowDemoFallback) throw new BackendUnavailable()
-    throw err instanceof ApiError ? err : new ApiError("Network error.", 0)
+    throw new ApiError("Network error.", 0)
   }
 }
 
@@ -134,8 +135,9 @@ async function requestForm<T>(path: string, body: URLSearchParams, allowDemoFall
     return await parseResponse<T>(res, allowDemoFallback)
   } catch (err) {
     if (err instanceof BackendUnavailable) throw err
+    if (err instanceof ApiError) throw err
     if (allowDemoFallback) throw new BackendUnavailable()
-    throw err instanceof ApiError ? err : new ApiError("Network error.", 0)
+    throw new ApiError("Network error.", 0)
   }
 }
 
@@ -303,7 +305,7 @@ function backendCompareToFrontend(compare: BackendCompare): CompareResponse {
         roiScore: metric("roiScore", "ROI score", item.roi_score, "number"),
         monthlyCashFlow: metric("monthlyCashFlow", "Monthly cash flow", item.monthly_cash_flow, "currency"),
         grossYield: metric("grossYield", "Gross yield", item.gross_yield, "percent"),
-        netYield: metric("netYield", "Net yield", item.net_yield, "percent"),
+        netYield: metric("Net yield", "Net yield", item.net_yield, "percent"),
         cashOnCash: metric("cashOnCash", "Cash-on-cash", item.cash_on_cash_return, "percent"),
       },
     })),
