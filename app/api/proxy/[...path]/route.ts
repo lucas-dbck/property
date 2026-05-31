@@ -4,7 +4,7 @@
 
 import { type NextRequest, NextResponse } from "next/server"
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
+const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_URL
 
 async function handler(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   const { path } = await ctx.params
@@ -21,7 +21,8 @@ async function handler(req: NextRequest, ctx: { params: Promise<{ path: string[]
   url.search = req.nextUrl.search
 
   const headers = new Headers()
-  headers.set("content-type", "application/json")
+  const contentType = req.headers.get("content-type")
+  if (contentType) headers.set("content-type", contentType)
   const auth = req.headers.get("authorization")
   if (auth) headers.set("authorization", auth)
 
@@ -39,11 +40,11 @@ async function handler(req: NextRequest, ctx: { params: Promise<{ path: string[]
     })
 
     const text = await upstream.text()
-    const contentType = upstream.headers.get("content-type") ?? "application/json"
+    const upstreamContentType = upstream.headers.get("content-type") ?? "application/json"
 
     return new NextResponse(text, {
       status: upstream.status,
-      headers: { "content-type": contentType },
+      headers: { "content-type": upstreamContentType },
     })
   } catch {
     // Network failure reaching the backend -> let the client fall back.
