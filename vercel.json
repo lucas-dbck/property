@@ -1,0 +1,10 @@
+{
+  "experimentalServices": {
+    "frontend": {
+      "rootPrefix": "./",
+      "framework": "nextjs",
+      "installCommand": "npm install",
+      "buildCommand": "npm run build"
+    }
+  }
+}
