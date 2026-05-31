@@ -5,7 +5,6 @@
 import { demoApi } from "./demo"
 import type {
   AnalyzeResponse,
-  AuthResponse,
   CompareResponse,
   ImmowebImportResponse,
   InputTemplate,
@@ -183,6 +182,11 @@ function toNumber(value: unknown, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback
 }
 
+function rateToDecimal(value: unknown, fallback = 0): number {
+  const n = toNumber(value, fallback)
+  return n > 1 ? n / 100 : n
+}
+
 function firstValue(source: Record<string, unknown>, keys: string[]) {
   for (const key of keys) {
     const value = source[key]
@@ -192,48 +196,58 @@ function firstValue(source: Record<string, unknown>, keys: string[]) {
 }
 
 function backendToInputValues(data: Record<string, unknown> = {}): InputValues {
+  const price = toNumber(firstValue(data, ["purchase_price", "price", "purchasePrice"]))
+  const downPayment = firstValue(data, ["down_payment", "downPayment"])
   return {
-    source_url: String(firstValue(data, ["source_url", "listing_url"]) ?? ""),
-    purchasePrice: toNumber(firstValue(data, ["purchase_price", "price"])),
+    source_url: String(firstValue(data, ["source_url", "listing_url", "listingUrl"]) ?? ""),
+    purchase_price: price,
     city: String(firstValue(data, ["city", "locality"]) ?? ""),
-    livingArea: toNumber(firstValue(data, ["area_sqm", "living_area", "size_sqm"])),
+    area_sqm: toNumber(firstValue(data, ["area_sqm", "living_area", "size_sqm", "livingArea"])),
     bedrooms: toNumber(data.bedrooms),
-    epcScore: String(firstValue(data, ["energy_score", "epc_score"]) ?? ""),
-    monthlyRent: toNumber(firstValue(data, ["monthly_rent", "estimated_rent", "expected_monthly_rent"])),
-    renovationBudget: toNumber(data.renovation_cost),
-    vacancyRate: toNumber(data.vacancy_rate, 0.05) * 100,
-    downPaymentRate: data.down_payment && data.purchase_price ? (toNumber(data.down_payment) / toNumber(data.purchase_price)) * 100 : 20,
-    interestRate: toNumber(data.interest_rate),
-    loanTermYears: toNumber(data.loan_years, 25),
-    annualInsurance: toNumber(data.annual_insurance, 600),
-    annualPropertyTax: toNumber(firstValue(data, ["annual_taxes", "property_tax"])),
-    annualMaintenance: toNumber(data.monthly_maintenance) * 12,
-    managementRate: toNumber(data.management_fee_rate) * 100,
-    registrationTaxRate: toNumber(data.closing_cost_rate, 0.12) * 100,
+    bathrooms: toNumber(data.bathrooms),
+    property_type: String(firstValue(data, ["property_type", "propertyType"]) ?? ""),
+    energy_score: String(firstValue(data, ["energy_score", "epc_score", "epcScore"]) ?? ""),
+    amenities: String(firstValue(data, ["amenities"]) ?? ""),
+    condition: String(firstValue(data, ["condition"]) ?? ""),
+    monthly_rent: toNumber(firstValue(data, ["monthly_rent", "estimated_rent", "expected_monthly_rent", "monthlyRent"])),
+    renovation_cost: toNumber(firstValue(data, ["renovation_cost", "renovationBudget"])),
+    closing_cost_rate: rateToDecimal(firstValue(data, ["closing_cost_rate", "registrationTaxRate"]), 0.12),
+    vacancy_rate: rateToDecimal(firstValue(data, ["vacancy_rate", "vacancyRate"]), 0.05),
+    down_payment: downPayment !== undefined ? toNumber(downPayment) : price * 0.2,
+    interest_rate: toNumber(firstValue(data, ["interest_rate", "interestRate"])),
+    loan_years: toNumber(firstValue(data, ["loan_years", "loanTermYears"]), 25),
+    annual_insurance: toNumber(firstValue(data, ["annual_insurance", "annualInsurance"]), 600),
+    annual_taxes: toNumber(firstValue(data, ["annual_taxes", "property_tax", "annualPropertyTax"])),
+    monthly_maintenance: toNumber(firstValue(data, ["monthly_maintenance", "monthlyMaintenance"])),
+    management_fee_rate: rateToDecimal(firstValue(data, ["management_fee_rate", "managementRate"])),
   }
 }
 
 function inputToBackendData(values: InputValues): Record<string, unknown> {
-  const purchasePrice = toNumber(values.purchasePrice)
+  const purchasePrice = toNumber(firstValue(values, ["purchase_price", "purchasePrice", "price"]))
+  const downPayment = firstValue(values, ["down_payment", "downPayment"])
   return {
     purchase_price: purchasePrice,
-    source_url: values.source_url,
-    city: values.city,
-    area_sqm: values.livingArea,
-    bedrooms: values.bedrooms,
-    energy_score: values.epcScore,
-    monthly_rent: values.monthlyRent,
-    renovation_cost: values.renovationBudget,
-    closing_cost_rate: toNumber(values.registrationTaxRate) / 100,
-    vacancy_rate: toNumber(values.vacancyRate) / 100,
-    down_payment: purchasePrice * (toNumber(values.downPaymentRate) / 100),
-    interest_rate: values.interestRate,
-    loan_years: values.loanTermYears,
-    annual_insurance: values.annualInsurance,
-    annual_taxes: values.annualPropertyTax,
-    monthly_maintenance: toNumber(values.annualMaintenance) / 12,
-    management_fee_rate: toNumber(values.managementRate) / 100,
-    condition: values.condition,
+    source_url: firstValue(values, ["source_url", "listingUrl"]),
+    city: firstValue(values, ["city"]),
+    area_sqm: firstValue(values, ["area_sqm", "livingArea"]),
+    bedrooms: firstValue(values, ["bedrooms"]),
+    bathrooms: firstValue(values, ["bathrooms"]),
+    property_type: firstValue(values, ["property_type", "propertyType"]),
+    energy_score: firstValue(values, ["energy_score", "epcScore"]),
+    amenities: firstValue(values, ["amenities"]),
+    monthly_rent: firstValue(values, ["monthly_rent", "monthlyRent"]),
+    renovation_cost: firstValue(values, ["renovation_cost", "renovationBudget"]),
+    closing_cost_rate: rateToDecimal(firstValue(values, ["closing_cost_rate", "registrationTaxRate"]), 0.12),
+    vacancy_rate: rateToDecimal(firstValue(values, ["vacancy_rate", "vacancyRate"]), 0.05),
+    down_payment: downPayment !== undefined ? toNumber(downPayment) : purchasePrice * 0.2,
+    interest_rate: firstValue(values, ["interest_rate", "interestRate"]),
+    loan_years: firstValue(values, ["loan_years", "loanTermYears"]),
+    annual_insurance: firstValue(values, ["annual_insurance", "annualInsurance"]),
+    annual_taxes: firstValue(values, ["annual_taxes", "annualPropertyTax"]),
+    monthly_maintenance: firstValue(values, ["monthly_maintenance", "monthlyMaintenance"]),
+    management_fee_rate: rateToDecimal(firstValue(values, ["management_fee_rate", "managementRate"])),
+    condition: firstValue(values, ["condition"]),
   }
 }
 
@@ -299,17 +313,31 @@ function backendImportToFrontend(item: BackendOpportunity): ImmowebImportRespons
   }
 }
 
+function defaultOptionsForField(key: string) {
+  if (key === "energy_score") {
+    return ["A+", "A", "B", "C", "D", "E", "F", "G"].map((value) => ({ label: value, value }))
+  }
+  if (key === "condition") {
+    return ["poor", "average", "renovated", "new"].map((value) => ({ label: value[0].toUpperCase() + value.slice(1), value }))
+  }
+  return undefined
+}
+
 function backendTemplateToFrontend(template: { fields: Array<Record<string, unknown>> }): InputTemplate {
   return {
-    fields: template.fields.map((field) => ({
-      key: String(field.key),
-      label: String(field.label),
-      type: field.value_type === "list" ? "text" : field.value_type === "url" ? "text" : (field.value_type as any),
-      group: String(field.group ?? ""),
-      defaultValue: field.default as string | number | boolean | undefined,
-      helpText: String(field.description ?? ""),
-      required: Boolean(field.required_for_roi),
-    })),
+    fields: template.fields.map((field) => {
+      const key = String(field.key)
+      return {
+        key,
+        label: String(field.label),
+        type: field.value_type === "list" ? "text" : field.value_type === "url" ? "text" : (field.value_type as any),
+        group: String(field.group ?? ""),
+        defaultValue: field.default as string | number | boolean | undefined,
+        options: Array.isArray(field.options) ? field.options as { label: string; value: string }[] : defaultOptionsForField(key),
+        helpText: String(field.description ?? ""),
+        required: Boolean(field.required_for_roi),
+      }
+    }),
   }
 }
 
