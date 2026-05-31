@@ -88,16 +88,37 @@ interface RequestOptions {
   allowDemoFallback?: boolean
 }
 
+function formatApiMessage(value: unknown): string | null {
+  if (!value) return null
+  if (typeof value === "string") return value
+  if (Array.isArray(value)) {
+    const messages = value.map(formatApiMessage).filter(Boolean)
+    return messages.length ? messages.join(" ") : null
+  }
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>
+    if (typeof obj.msg === "string") return obj.msg
+    return formatApiMessage(obj.detail ?? obj.message ?? obj.error) ?? JSON.stringify(obj)
+  }
+  return String(value)
+}
+
 async function parseResponse<T>(res: Response, allowDemoFallback: boolean): Promise<T> {
   if (res.status === 503 && allowDemoFallback) {
     throw new BackendUnavailable()
   }
 
   const text = await res.text()
-  const data = text ? JSON.parse(text) : null
+  let data: unknown = null
+  try {
+    data = text ? JSON.parse(text) : null
+  } catch {
+    data = text
+  }
 
   if (!res.ok) {
-    const message = (data && (data.detail || data.message || data.error)) || `Request failed (${res.status}).`
+    const source = data && typeof data === "object" ? (data as Record<string, unknown>) : null
+    const message = formatApiMessage(source?.detail ?? source?.message ?? source?.error ?? data) || `Request failed (${res.status}).`
     throw new ApiError(message, res.status)
   }
 
@@ -172,7 +193,9 @@ function firstValue(source: Record<string, unknown>, keys: string[]) {
 
 function backendToInputValues(data: Record<string, unknown> = {}): InputValues {
   return {
+    source_url: String(firstValue(data, ["source_url", "listing_url"]) ?? ""),
     purchasePrice: toNumber(firstValue(data, ["purchase_price", "price"])),
+    city: String(firstValue(data, ["city", "locality"]) ?? ""),
     livingArea: toNumber(firstValue(data, ["area_sqm", "living_area", "size_sqm"])),
     bedrooms: toNumber(data.bedrooms),
     epcScore: String(firstValue(data, ["energy_score", "epc_score"]) ?? ""),
@@ -194,6 +217,7 @@ function inputToBackendData(values: InputValues): Record<string, unknown> {
   const purchasePrice = toNumber(values.purchasePrice)
   return {
     purchase_price: purchasePrice,
+    source_url: values.source_url,
     city: values.city,
     area_sqm: values.livingArea,
     bedrooms: values.bedrooms,
@@ -265,7 +289,7 @@ function backendOpportunityToFrontend(item: BackendOpportunity): Opportunity {
 function backendImportToFrontend(item: BackendOpportunity): ImmowebImportResponse {
   const data = item.final_data || item.imported_data || {}
   return {
-    values: backendToInputValues(data),
+    values: backendToInputValues({ ...data, source_url: item.source_url }),
     meta: {
       title: item.title,
       listingUrl: item.source_url || undefined,
@@ -305,7 +329,7 @@ function backendCompareToFrontend(compare: BackendCompare): CompareResponse {
         roiScore: metric("roiScore", "ROI score", item.roi_score, "number"),
         monthlyCashFlow: metric("monthlyCashFlow", "Monthly cash flow", item.monthly_cash_flow, "currency"),
         grossYield: metric("grossYield", "Gross yield", item.gross_yield, "percent"),
-        netYield: metric("Net yield", "Net yield", item.net_yield, "percent"),
+        netYield: metric("netYield", "Net yield", item.net_yield, "percent"),
         cashOnCash: metric("cashOnCash", "Cash-on-cash", item.cash_on_cash_return, "percent"),
       },
     })),
@@ -319,6 +343,7 @@ export const api = {
         const user = await request<BackendUser>("/auth/register", {
           method: "POST",
           body: { email: input.email, password: input.password, full_name: input.name || input.email },
+          allowDemoFallback: false,
         })
         return { token: "", user: backendUserToAuthUser(user) }
       },
@@ -331,6 +356,7 @@ export const api = {
         const token = await requestForm<BackendToken>(
           "/auth/login",
           new URLSearchParams({ username: input.email, password: input.password }),
+          false,
         )
         setToken(token.access_token)
         const user = await request<BackendUser>("/auth/me", { allowDemoFallback: false })
