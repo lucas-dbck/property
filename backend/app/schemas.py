@@ -20,7 +20,7 @@ class Token(BaseModel):
 class UserCreate(BaseModel):
     email: EmailStr
     full_name: str = Field(min_length=2, max_length=120)
-    password: str = Field(min_length=8, max_length=128)
+    password: str = Field(min_length=8, max_length=72)
 
 
 class UserRead(BaseModel):
@@ -179,7 +179,6 @@ class ImmowebImportRequest(BaseModel):
 
 
 class InvestmentOpportunityUpdate(BaseModel):
-    source: ImportSource | None = None
     source_url: HttpUrl | None = None
     title: str | None = Field(default=None, min_length=3, max_length=180)
     imported_data: dict | None = None
@@ -189,6 +188,8 @@ class InvestmentOpportunityUpdate(BaseModel):
 
 
 class InvestmentOpportunityRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     owner_id: int
     source: ImportSource
@@ -210,7 +211,7 @@ class OpportunityAnalysisRead(BaseModel):
 
 
 class OpportunityQuickAnalysisRequest(BaseModel):
-    data: dict = Field(default_factory=dict)
+    data: dict
 
 
 class OpportunityQuickAnalysisRead(BaseModel):
@@ -223,12 +224,11 @@ class OpportunityInputField(BaseModel):
     label: str
     group: str
     value_type: str
-    editable: bool = True
     imported: bool = False
     required_for_roi: bool = False
-    description: str
-    example: str | int | float | list[str] | None = None
-    default: str | int | float | list[str] | None = None
+    description: str | None = None
+    example: object | None = None
+    default: object | None = None
 
 
 class OpportunityInputTemplateRead(BaseModel):
@@ -236,17 +236,14 @@ class OpportunityInputTemplateRead(BaseModel):
 
 
 class OpportunityComparisonItem(BaseModel):
-    rank: int
     opportunity_id: int
     title: str
-    source: ImportSource
-    source_url: str | None
+    rank: int
     roi_score: int
     estimated_monthly_rent: float
     gross_yield: float
     net_yield: float
     monthly_cash_flow: float
-    annual_cash_flow: float
     cash_on_cash_return: float
     total_investment: float
 
