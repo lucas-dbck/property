@@ -3,6 +3,7 @@ import re
 from html import unescape
 from html.parser import HTMLParser
 from typing import Any
+from urllib.parse import unquote, urlparse
 
 import httpx
 
@@ -40,10 +41,14 @@ def import_immoweb_listing(url: str) -> dict[str, Any]:
 
 def fetch_listing_html(url: str) -> str:
     headers = {
-        "User-Agent": "Mozilla/5.0 (compatible; PropertyROI/0.1; +https://github.com/lucas-dbck/property)",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/125.0 Safari/537.36"
+        ),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9,nl;q=0.8,fr;q=0.8",
     }
-    with httpx.Client(timeout=15, follow_redirects=True, headers=headers) as client:
+    with httpx.Client(timeout=20, follow_redirects=True, headers=headers) as client:
         response = client.get(url)
         response.raise_for_status()
         return response.text
@@ -57,6 +62,8 @@ def extract_immoweb_listing(html: str, source_url: str) -> dict[str, Any]:
         "missing_fields": [],
     }
 
+    merge_url_fields(extracted, source_url)
+
     json_objects = extract_json_ld(html)
     for item in json_objects:
         merge_json_ld_fields(extracted, item)
@@ -65,6 +72,7 @@ def extract_immoweb_listing(html: str, source_url: str) -> dict[str, Any]:
     for item in listing_objects:
         merge_listing_object_fields(extracted, item)
 
+    merge_raw_json_patterns(extracted, html)
     merge_regex_fields(extracted, html)
 
     expected_fields = ["price", "city", "postcode", "property_type", "bedrooms", "bathrooms", "area_sqm", "energy_score"]
@@ -74,7 +82,37 @@ def extract_immoweb_listing(html: str, source_url: str) -> dict[str, Any]:
     extracted["missing_fields"] = missing_fields
     extracted["extraction_confidence"] = round(len(extracted_fields) / len(expected_fields), 2)
     extracted["extraction_status"] = "success" if not missing_fields else "partial"
+    if looks_blocked_or_empty(html) and not extracted_fields:
+        extracted["extraction_status"] = "blocked"
+        extracted["error"] = "Immoweb did not expose listing details to the backend request."
     return extracted
+
+
+def merge_url_fields(extracted: dict[str, Any], source_url: str) -> None:
+    path_parts = [unquote(part) for part in urlparse(source_url).path.split("/") if part]
+    if not path_parts:
+        return
+    lowered = [part.lower() for part in path_parts]
+    for kind in ["apartment", "house", "studio", "land", "commercial"]:
+        if kind in lowered and not extracted.get("property_type"):
+            extracted["property_type"] = kind
+    if "for-sale" in lowered:
+        extracted.setdefault("listing_type", "sale")
+    elif "for-rent" in lowered:
+        extracted.setdefault("listing_type", "rent")
+
+    if len(path_parts) >= 2 and path_parts[-1].isdigit():
+        extracted.setdefault("listing_id", path_parts[-1])
+    if len(path_parts) >= 3 and path_parts[-2].isdigit():
+        extracted.setdefault("postcode", path_parts[-2])
+        city = path_parts[-3].replace("-", " ").title()
+        if city and city.lower() not in {"for sale", "for rent", "classified"}:
+            extracted.setdefault("city", city)
+
+
+def looks_blocked_or_empty(html: str) -> bool:
+    lower = html.lower()
+    return len(html) < 5000 or any(marker in lower for marker in ["captcha", "access denied", "enable javascript", "cloudflare"])
 
 
 def extract_json_ld(html: str) -> list[dict[str, Any]]:
@@ -107,35 +145,74 @@ def flatten_json_ld(value: Any) -> list[dict[str, Any]]:
 def extract_embedded_listing_objects(html: str) -> list[dict[str, Any]]:
     objects = []
     for script in extract_script_json_candidates(html):
-        try:
-            parsed = json.loads(script)
-        except json.JSONDecodeError:
-            continue
-        objects.extend(find_listing_like_objects(parsed))
+        for candidate in extract_json_objects_from_text(script):
+            try:
+                parsed = json.loads(candidate)
+            except json.JSONDecodeError:
+                continue
+            objects.extend(find_listing_like_objects(parsed))
     return objects
 
 
 def extract_script_json_candidates(html: str) -> list[str]:
     candidates = []
-    next_data_match = re.search(
-        r'<script[^>]+id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>',
-        html,
-        re.I | re.S,
-    )
-    if next_data_match:
-        candidates.append(unescape(next_data_match.group(1)).strip())
-
-    for match in re.finditer(r"window\.__INITIAL_STATE__\s*=\s*({.*?})\s*</script>", html, re.I | re.S):
-        candidates.append(match.group(1).strip())
-
+    for match in re.finditer(r"<script[^>]*>(.*?)</script>", html, re.I | re.S):
+        script = unescape(match.group(1)).strip()
+        if script and any(token in script.lower() for token in ["classified", "price", "bedroom", "surface", "__next_data__"]):
+            candidates.append(script)
     return candidates
+
+
+def extract_json_objects_from_text(text: str) -> list[str]:
+    stripped = text.strip()
+    if stripped.startswith("{") or stripped.startswith("["):
+        return [stripped]
+
+    objects: list[str] = []
+    for keyword in ["classified", "property", "realEstate", "initialState", "__INITIAL_STATE__"]:
+        for match in re.finditer(re.escape(keyword), text, re.I):
+            start = text.find("{", match.end())
+            if start == -1:
+                continue
+            obj = read_balanced_object(text, start)
+            if obj:
+                objects.append(obj)
+    return objects
+
+
+def read_balanced_object(text: str, start: int) -> str | None:
+    depth = 0
+    in_string = False
+    quote = ""
+    escape = False
+    for index in range(start, min(len(text), start + 2_000_000)):
+        char = text[index]
+        if in_string:
+            if escape:
+                escape = False
+            elif char == "\\":
+                escape = True
+            elif char == quote:
+                in_string = False
+            continue
+        if char in {"'", '"'}:
+            in_string = True
+            quote = char
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                candidate = text[start : index + 1]
+                return candidate.replace("'", '"') if "'" in candidate and '"' not in candidate else candidate
+    return None
 
 
 def find_listing_like_objects(value: Any) -> list[dict[str, Any]]:
     found = []
     if isinstance(value, dict):
         keys = {normalize_key(key) for key in value}
-        if keys & {"price", "bedroomcount", "bedrooms", "roomcount", "surface", "livablesurface", "nethabitablesurface"}:
+        if keys & {"price", "mainvalue", "bedroomcount", "bedrooms", "roomcount", "surface", "livablesurface", "nethabitablesurface"}:
             found.append(value)
         for child in value.values():
             found.extend(find_listing_like_objects(child))
@@ -175,7 +252,7 @@ def merge_listing_object_fields(extracted: dict[str, Any], item: dict[str, Any])
     field_map = flatten_mapping(item)
 
     set_first(extracted, field_map, "title", ["title", "name"])
-    set_first(extracted, field_map, "price", ["price", "mainprice", "saleprice", "transactionprice"])
+    set_first(extracted, field_map, "price", ["price", "mainprice", "saleprice", "transactionprice", "mainvalue"])
     set_first(extracted, field_map, "currency", ["currency", "pricecurrency"])
     set_first(extracted, field_map, "city", ["locality", "city", "municipality", "addresslocality"])
     set_first(extracted, field_map, "postcode", ["postalcode", "postcode", "zip"])
@@ -187,7 +264,7 @@ def merge_listing_object_fields(extracted: dict[str, Any], item: dict[str, Any])
         extracted,
         field_map,
         "area_sqm",
-        ["livablesurface", "netHabitablesurface", "habitableSurface", "surface", "area", "size"],
+        ["livablesurface", "nethabitablesurface", "habitablesurface", "surface", "area", "size"],
     )
     set_first(extracted, field_map, "energy_score", ["epcscore", "energyscore", "energyclass", "peb"])
     set_first(extracted, field_map, "condition", ["condition", "buildingcondition", "renovationlevel"])
@@ -198,7 +275,7 @@ def merge_listing_object_fields(extracted: dict[str, Any], item: dict[str, Any])
             extracted["images"] = images
 
 
-def flatten_mapping(value: Any, prefix: str = "") -> dict[str, Any]:
+def flatten_mapping(value: Any) -> dict[str, Any]:
     flattened = {}
     if isinstance(value, dict):
         for key, child in value.items():
@@ -206,11 +283,11 @@ def flatten_mapping(value: Any, prefix: str = "") -> dict[str, Any]:
             if child not in (None, "", []):
                 flattened.setdefault(normalized, child)
             if isinstance(child, (dict, list)):
-                flattened.update(flatten_mapping(child, normalized))
+                flattened.update(flatten_mapping(child))
     elif isinstance(value, list):
         for child in value:
             if isinstance(child, (dict, list)):
-                flattened.update(flatten_mapping(child, prefix))
+                flattened.update(flatten_mapping(child))
     return flattened
 
 
@@ -259,6 +336,34 @@ def collect_image_urls(value: Any) -> list[str]:
     return urls[:12]
 
 
+def merge_raw_json_patterns(extracted: dict[str, Any], html: str) -> None:
+    raw = unescape(html)
+    if not extracted.get("price"):
+        extracted["price"] = first_number_match(
+            raw,
+            [
+                r'"price"\s*:\s*\{[^{}]{0,300}"mainValue"\s*:\s*([0-9]{5,8})',
+                r'"mainValue"\s*:\s*([0-9]{5,8})',
+                r'"salePrice"\s*:\s*([0-9]{5,8})',
+                r'"transactionPrice"\s*:\s*([0-9]{5,8})',
+            ],
+        )
+    if not extracted.get("city"):
+        extracted["city"] = first_text_match(raw, [r'"locality"\s*:\s*"([^"]+)"', r'"city"\s*:\s*"([^"]+)"'])
+    if not extracted.get("postcode"):
+        extracted["postcode"] = first_text_match(raw, [r'"postalCode"\s*:\s*"?([0-9]{4})"?', r'"postcode"\s*:\s*"?([0-9]{4})"?'])
+    if not extracted.get("bedrooms"):
+        extracted["bedrooms"] = first_number_match(raw, [r'"bedroomCount"\s*:\s*([0-9]+)', r'"bedrooms"\s*:\s*([0-9]+)'])
+    if not extracted.get("bathrooms"):
+        extracted["bathrooms"] = first_number_match(raw, [r'"bathroomCount"\s*:\s*([0-9]+)', r'"bathrooms"\s*:\s*([0-9]+)'])
+    if not extracted.get("area_sqm"):
+        extracted["area_sqm"] = first_number_match(raw, [r'"netHabitableSurface"\s*:\s*([0-9]+)', r'"livableSurface"\s*:\s*([0-9]+)', r'"surface"\s*:\s*([0-9]+)'])
+    if not extracted.get("energy_score"):
+        extracted["energy_score"] = first_text_match(raw, [r'"epcScore"\s*:\s*"([A-G][+]?)"', r'"energyClass"\s*:\s*"([A-G][+]?)"'])
+    if not extracted.get("property_type"):
+        extracted["property_type"] = first_text_match(raw, [r'"subtype"\s*:\s*"([^"]+)"', r'"propertyType"\s*:\s*"([^"]+)"'])
+
+
 def merge_regex_fields(extracted: dict[str, Any], html: str) -> None:
     text = unescape(strip_html(html))
     compact = " ".join(text.split())
@@ -267,8 +372,8 @@ def merge_regex_fields(extracted: dict[str, Any], html: str) -> None:
         extracted["price"] = first_number_match(
             compact,
             [
-                r"(?:Price|Asking price|Sale price)\s*(?:EUR|\u20ac)?\s*([0-9][0-9.\s,]*)",
-                r"(?:EUR|\u20ac)\s*([0-9][0-9.\s,]*)\s*(?:asking|sale|price)",
+                r"(?:Price|Asking price|Sale price)\s*(?:EUR|€)?\s*([0-9][0-9.\s,]*)",
+                r"(?:EUR|€)\s*([0-9][0-9.\s,]*)\s*(?:asking|sale|price)",
             ],
         )
     if not extracted.get("bedrooms"):
@@ -278,7 +383,7 @@ def merge_regex_fields(extracted: dict[str, Any], html: str) -> None:
     if not extracted.get("area_sqm"):
         extracted["area_sqm"] = first_number_match(
             compact,
-            [r"(?:Living area|Habitable surface|Surface|Area)\s*([0-9]+)\s*(?:m2|m\u00b2|sqm)"],
+            [r"(?:Living area|Habitable surface|Surface|Area)\s*([0-9]+)\s*(?:m2|m²|sqm)"],
         )
 
     energy_match = re.search(r"\bEPC\b[^A-F+]*([A-F][+]?)\b|\bEnergy score\b[^A-F+]*([A-F][+]?)\b", compact, re.I)
@@ -305,9 +410,18 @@ def normalize_images(value: Any) -> list[str]:
 
 def first_number_match(text: str, patterns: list[str]) -> float | None:
     for pattern in patterns:
-        match = re.search(pattern, text, re.I)
+        match = re.search(pattern, text, re.I | re.S)
         if match:
             return as_number(match.group(1))
+    return None
+
+
+def first_text_match(text: str, patterns: list[str]) -> str | None:
+    for pattern in patterns:
+        match = re.search(pattern, text, re.I | re.S)
+        if match:
+            value = unescape(match.group(1)).strip()
+            return value if value else None
     return None
 
 
@@ -321,8 +435,8 @@ def as_number(value: Any) -> float | None:
         return None
 
 
-def strip_html(value: Any) -> str | None:
+def strip_html(value: Any) -> str:
     if value is None:
-        return None
+        return ""
     text = re.sub(r"<[^>]+>", " ", str(value))
     return " ".join(unescape(text).split())
