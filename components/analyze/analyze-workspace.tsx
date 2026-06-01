@@ -11,6 +11,7 @@ import { useRoiInputs } from "@/hooks/use-roi-inputs"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { PageHeader } from "@/components/page-header"
 import { ImportBar } from "@/components/analyze/import-bar"
+import { TextImportBox } from "@/components/analyze/text-import-box"
 import { RoiInputForm } from "@/components/analyze/roi-input-form"
 import { RoiResultPanel } from "@/components/analyze/roi-result-panel"
 import { ReviewBanner } from "@/components/analyze/review-banner"
@@ -26,9 +27,7 @@ export function AnalyzeWorkspace() {
   const searchParams = useSearchParams()
   const editId = searchParams.get("id")
 
-  // Template (field schema) drives the form.
   const { data: template, isLoading: templateLoading } = useSWR("input-template", () => api.getInputTemplate())
-  // Existing opportunity when editing.
   const { data: existing, isLoading: existingLoading } = useSWR(
     editId ? ["opportunity", editId] : null,
     () => api.listOpportunities().then((list) => list.find((o) => o.id === editId)),
@@ -42,7 +41,6 @@ export function AnalyzeWorkspace() {
   const [saving, setSaving] = useState(false)
   const [initialized, setInitialized] = useState(false)
 
-  // Seed form once template (and existing opportunity, if editing) are loaded.
   useEffect(() => {
     if (initialized || fields.length === 0) return
     if (editId) {
@@ -64,7 +62,6 @@ export function AnalyzeWorkspace() {
     }
   }
 
-  // Live analysis: debounce input changes, then call analyze.
   const debouncedValues = useDebouncedValue(values, 400)
   const analyzeKey = useMemo(
     () => (initialized ? ["analyze", JSON.stringify(debouncedValues)] : null),
@@ -121,7 +118,6 @@ export function AnalyzeWorkspace() {
       />
 
       <div className="grid gap-6 p-4 sm:p-6 lg:grid-cols-[1fr_380px] lg:p-8">
-        {/* Left: inputs */}
         <div className="flex flex-col gap-6">
           {!editId && (
             <Card>
@@ -130,6 +126,17 @@ export function AnalyzeWorkspace() {
               </CardHeader>
               <CardContent>
                 <ImportBar onImported={handleImported} />
+              </CardContent>
+            </Card>
+          )}
+
+          {!editId && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Paste listing text</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <TextImportBox onImported={handleImported} />
               </CardContent>
             </Card>
           )}
@@ -164,7 +171,6 @@ export function AnalyzeWorkspace() {
           </Card>
         </div>
 
-        {/* Right: live ROI */}
         <div className="lg:sticky lg:top-6 lg:self-start">
           <div className="space-y-3">
             <h2 className="text-sm font-semibold text-muted-foreground">Live ROI analysis</h2>

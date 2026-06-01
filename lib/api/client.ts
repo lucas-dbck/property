@@ -207,7 +207,7 @@ function backendToInputValues(data: Record<string, unknown> = {}): InputValues {
     bathrooms: toNumber(data.bathrooms),
     property_type: String(firstValue(data, ["property_type", "propertyType"]) ?? ""),
     energy_score: String(firstValue(data, ["energy_score", "epc_score", "epcScore"]) ?? ""),
-    amenities: String(firstValue(data, ["amenities"]) ?? ""),
+    amenities: Array.isArray(data.amenities) ? data.amenities.join(", ") : String(firstValue(data, ["amenities"]) ?? ""),
     condition: String(firstValue(data, ["condition"]) ?? ""),
     monthly_rent: toNumber(firstValue(data, ["monthly_rent", "estimated_rent", "expected_monthly_rent", "monthlyRent"])),
     renovation_cost: toNumber(firstValue(data, ["renovation_cost", "renovationBudget"])),
@@ -403,6 +403,15 @@ export const api = {
     withFallback(
       async () => backendImportToFrontend(await request<BackendOpportunity>("/opportunities/imports/immoweb", { method: "POST", body: { url: listingUrl } })),
       () => demoApi.importImmoweb(listingUrl),
+    ),
+
+  importListingText: (input: { text: string; sourceUrl?: string }) =>
+    withFallback(
+      async () => backendImportToFrontend(await request<BackendOpportunity>("/opportunities/imports/text", {
+        method: "POST",
+        body: { text: input.text, source_url: input.sourceUrl },
+      })),
+      () => demoApi.importImmoweb(input.sourceUrl || input.text.slice(0, 80)),
     ),
 
   analyze: (values: InputValues) =>

@@ -2,6 +2,7 @@ import json
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -9,6 +10,7 @@ from ..analysis import calculate_roi
 from ..auth import get_current_user
 from ..database import get_db
 from ..importers.immoweb import import_immoweb_listing
+from ..importers.listing_text import extract_listing_text_data
 from ..models import ImportSource, InvestmentOpportunity, User
 from ..schemas import (
     ImmowebImportRequest,
@@ -25,6 +27,14 @@ from ..schemas import (
 )
 
 router = APIRouter(prefix="/opportunities", tags=["opportunities"])
+
+
+class ListingTextImportRequest(BaseModel):
+    text: str = Field(min_length=20, max_length=50000)
+    source_url: str | None = None
+    title: str | None = Field(default=None, min_length=3, max_length=180)
+    user_overrides: dict = Field(default_factory=dict)
+    notes: str | None = None
 
 
 def parse_json_object(value: str) -> dict[str, Any]:
@@ -131,6 +141,31 @@ def import_immoweb_opportunity(
         source=ImportSource.immoweb,
         source_url=source_url,
         title=payload.title or imported_data.get("title") or "Imported Immoweb opportunity",
+        imported_data=json.dumps(imported_data),
+        user_overrides=json.dumps(payload.user_overrides),
+        extraction_confidence=extraction_confidence,
+        notes=payload.notes,
+    )
+    db.add(opportunity)
+    db.commit()
+    db.refresh(opportunity)
+    return serialize_opportunity(opportunity)
+
+
+@router.post("/imports/text", response_model=InvestmentOpportunityRead, status_code=status.HTTP_201_CREATED)
+def import_listing_text_opportunity(
+    payload: ListingTextImportRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> InvestmentOpportunityRead:
+    imported_data = extract_listing_text_data(payload.text, payload.source_url)
+    extraction_confidence = imported_data.get("extraction_confidence", 0.0)
+    source_url = payload.source_url or imported_data.get("source_url")
+    opportunity = InvestmentOpportunity(
+        owner_id=current_user.id,
+        source=ImportSource.other,
+        source_url=source_url,
+        title=payload.title or imported_data.get("title") or "Imported listing text opportunity",
         imported_data=json.dumps(imported_data),
         user_overrides=json.dumps(payload.user_overrides),
         extraction_confidence=extraction_confidence,
@@ -352,14 +387,11 @@ def compare_opportunities(
             rank=index + 1,
             opportunity_id=opportunity.id,
             title=opportunity.title,
-            source=opportunity.source,
-            source_url=opportunity.source_url,
             roi_score=analysis["roi_score"],
             estimated_monthly_rent=analysis["estimated_monthly_rent"],
             gross_yield=analysis["gross_yield"],
             net_yield=analysis["net_yield"],
             monthly_cash_flow=analysis["monthly_cash_flow"],
-            annual_cash_flow=analysis["annual_cash_flow"],
             cash_on_cash_return=analysis["cash_on_cash_return"],
             total_investment=analysis["total_investment"],
         )
