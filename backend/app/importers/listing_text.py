@@ -1,7 +1,11 @@
+import json
+import os
 import re
 from html import unescape
 from typing import Any
 from urllib.parse import unquote, urlparse
+
+import httpx
 
 KNOWN_BELGIAN_CITIES = [
     "Brussels", "Antwerp", "Ghent", "Leuven", "Mechelen", "Bruges", "Hasselt", "Namur",
@@ -24,14 +28,151 @@ LABELS = {
     "property_type": ["property type", "type", "vastgoedtype", "type de bien"],
 }
 
+EXPECTED_FIELDS = ["price", "city", "postcode", "property_type", "bedrooms", "bathrooms", "area_sqm", "energy_score"]
+
 
 def extract_listing_text_data(text: str, source_url: str | None = None) -> dict[str, Any]:
+    fallback = extract_listing_text_with_rules(text, source_url)
+    ai_result = extract_listing_text_with_ai(text, source_url, fallback)
+    if ai_result:
+        return ai_result
+    return fallback
+
+
+def extract_listing_text_with_ai(text: str, source_url: str | None, fallback: dict[str, Any]) -> dict[str, Any] | None:
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return None
+
+    prompt = {
+        "source_url": source_url,
+        "listing_text": text[:45000],
+        "fallback_guess": fallback,
+        "instructions": (
+            "Extract Belgian real-estate listing facts from listing_text. Return only JSON. "
+            "Use null when a value is not present. Do not invent a price, rooms, area, or energy label. "
+            "The URL may contain property_type, city, postcode, and listing_id, but usually not price. "
+            "For price return the sale asking price as a number in EUR. For area_sqm return living/habitable area. "
+            "For energy_score return only A+, A, B, C, D, E, F, or G when visible."
+        ),
+        "json_shape": {
+            "title": "string or null",
+            "source_url": "string or null",
+            "listing_id": "string or null",
+            "price": "number or null",
+            "purchase_price": "number or null",
+            "currency": "EUR or null",
+            "city": "string or null",
+            "postcode": "string or null",
+            "address": "string or null",
+            "property_type": "apartment/house/studio/duplex/penthouse/land/commercial or null",
+            "bedrooms": "number or null",
+            "bathrooms": "number or null",
+            "area_sqm": "number or null",
+            "energy_score": "A+/A/B/C/D/E/F/G or null",
+            "condition": "new/renovated/good/average/to renovate/poor or null",
+            "amenities": "array of strings",
+            "images": "array of image URLs if present",
+        },
+    }
+
+    try:
+        with httpx.Client(timeout=30) as client:
+            response = client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+                    "temperature": 0,
+                    "response_format": {"type": "json_object"},
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": "You are a careful property listing data extractor. Return strict JSON only.",
+                        },
+                        {"role": "user", "content": json.dumps(prompt, ensure_ascii=True)},
+                    ],
+                },
+            )
+            response.raise_for_status()
+        content = response.json()["choices"][0]["message"]["content"]
+        parsed = json.loads(content)
+    except Exception as exc:
+        fallback["ai_extraction_status"] = "failed"
+        fallback["ai_error"] = str(exc)[:300]
+        return None
+
+    extracted = sanitize_ai_result(parsed, source_url)
+    merge_url_fields(extracted, source_url)
+
+    for key, value in fallback.items():
+        if extracted.get(key) in (None, "", []):
+            extracted[key] = value
+
+    if extracted.get("price") and not extracted.get("purchase_price"):
+        extracted["purchase_price"] = extracted["price"]
+
+    extracted["source_url"] = source_url or extracted.get("source_url")
+    extracted["extraction_method"] = "openai_listing_text"
+    extracted["ai_extraction_status"] = "success"
+    return finalize_extraction(extracted)
+
+
+def sanitize_ai_result(parsed: Any, source_url: str | None) -> dict[str, Any]:
+    if not isinstance(parsed, dict):
+        return {"source_url": source_url}
+
+    result: dict[str, Any] = {"source_url": source_url}
+    text_fields = ["title", "listing_id", "currency", "city", "postcode", "address", "property_type", "energy_score", "condition"]
+    number_fields = ["price", "purchase_price", "bedrooms", "bathrooms", "area_sqm"]
+
+    for field in text_fields:
+        value = parsed.get(field)
+        if isinstance(value, str) and value.strip():
+            result[field] = value.strip()
+
+    for field in number_fields:
+        value = as_number(parsed.get(field))
+        if value is not None:
+            result[field] = value
+
+    amenities = parsed.get("amenities")
+    if isinstance(amenities, list):
+        result["amenities"] = [str(item).strip().lower() for item in amenities if str(item).strip()]
+
+    images = parsed.get("images")
+    if isinstance(images, list):
+        result["images"] = [str(item).strip() for item in images if str(item).startswith("http")][:12]
+
+    energy = result.get("energy_score")
+    if isinstance(energy, str):
+        match = re.search(r"\b(A\+|A|B|C|D|E|F|G)\b", energy, re.I)
+        if match:
+            result["energy_score"] = match.group(1).upper()
+        else:
+            result.pop("energy_score", None)
+
+    property_type = result.get("property_type")
+    if isinstance(property_type, str):
+        lowered = property_type.lower()
+        for known in PROPERTY_TYPES:
+            if known in lowered:
+                result["property_type"] = "house" if known == "villa" else known
+                break
+
+    return {key: value for key, value in result.items() if value not in (None, "", [])}
+
+
+def extract_listing_text_with_rules(text: str, source_url: str | None = None) -> dict[str, Any]:
     normalized = normalize_text(text)
     lines = normalized.splitlines()
     extracted: dict[str, Any] = {
         "source_url": source_url,
         "extraction_status": "partial",
-        "extraction_method": "pasted_text",
+        "extraction_method": "pasted_text_rules",
         "extracted_fields": [],
         "missing_fields": [],
     }
@@ -55,8 +196,8 @@ def extract_listing_text_data(text: str, source_url: str | None = None) -> dict[
         r"([0-9]+)\s*(?:bathrooms?|badkamers?|salles? de bains?)",
     ])
     extracted["area_sqm"] = find_labeled_number(lines, LABELS["area_sqm"]) or find_number(normalized, [
-        r"(?:living area|habitable surface|surface habitable|woonoppervlakte|oppervlakte|surface|area)\s*[:\-]?\s*([0-9]+(?:[.,][0-9]+)?)\s*(?:m2|m²|sqm|sq m)?",
-        r"([0-9]+(?:[.,][0-9]+)?)\s*(?:m2|m²|sqm|sq m)\b",
+        r"(?:living area|habitable surface|surface habitable|woonoppervlakte|oppervlakte|surface|area)\s*[:\-]?\s*([0-9]+(?:[.,][0-9]+)?)\s*(?:m2|m\u00b2|sqm|sq m)?",
+        r"([0-9]+(?:[.,][0-9]+)?)\s*(?:m2|m\u00b2|sqm|sq m)\b",
     ])
     extracted["energy_score"] = find_energy_score(normalized, lines)
     extracted["condition"] = find_condition(normalized)
@@ -67,12 +208,15 @@ def extract_listing_text_data(text: str, source_url: str | None = None) -> dict[
     if extracted.get("price"):
         extracted["purchase_price"] = extracted["price"]
 
-    expected_fields = ["price", "city", "postcode", "property_type", "bedrooms", "bathrooms", "area_sqm", "energy_score"]
-    extracted_fields = [field for field in expected_fields if extracted.get(field) not in (None, "", [])]
-    missing_fields = [field for field in expected_fields if field not in extracted_fields]
+    return finalize_extraction(extracted)
+
+
+def finalize_extraction(extracted: dict[str, Any]) -> dict[str, Any]:
+    extracted_fields = [field for field in EXPECTED_FIELDS if extracted.get(field) not in (None, "", [])]
+    missing_fields = [field for field in EXPECTED_FIELDS if field not in extracted_fields]
     extracted["extracted_fields"] = extracted_fields
     extracted["missing_fields"] = missing_fields
-    extracted["extraction_confidence"] = round(len(extracted_fields) / len(expected_fields), 2)
+    extracted["extraction_confidence"] = round(len(extracted_fields) / len(EXPECTED_FIELDS), 2)
     extracted["extraction_status"] = "success" if not missing_fields else "partial"
     return {key: value for key, value in extracted.items() if value not in (None, "", [])}
 
@@ -106,7 +250,7 @@ def normalize_text(text: str) -> str:
 def first_nonempty_line(text: str) -> str | None:
     for line in normalize_text(text).splitlines():
         clean = line.strip()
-        if len(clean) >= 8 and not re.search(r"^(price|prijs|prix|€|eur|overview|details)\b", clean, re.I):
+        if len(clean) >= 8 and not re.search(r"^(price|prijs|prix|eur|overview|details)\b", clean, re.I):
             return clean
     return None
 
@@ -116,9 +260,9 @@ def find_price(text: str, lines: list[str]) -> float | None:
     if labeled and labeled >= 10000:
         return labeled
     patterns = [
-        r"(?:price|asking price|sale price|prijs|prix)\s*[:\-]?\s*(?:€|eur)?\s*([0-9][0-9.\s,]{4,})",
-        r"(?:€|eur)\s*([0-9][0-9.\s,]{4,})",
-        r"([0-9][0-9.\s,]{4,})\s*(?:€|eur)",
+        r"(?:price|asking price|sale price|prijs|prix)\s*[:\-]?\s*(?:\u20ac|eur)?\s*([0-9][0-9.\s,]{4,})",
+        r"(?:\u20ac|eur)\s*([0-9][0-9.\s,]{4,})",
+        r"([0-9][0-9.\s,]{4,})\s*(?:\u20ac|eur)",
     ]
     return find_number(text, patterns)
 
@@ -146,7 +290,7 @@ def find_postcode(text: str) -> str | None:
 
 
 def parse_postcode_city(value: str) -> tuple[str, str] | None:
-    match = re.search(r"\b([1-9][0-9]{3})\b\s+([A-ZÀ-ÿ][A-Za-zÀ-ÿ'\- ]{2,40})", value)
+    match = re.search(r"\b([1-9][0-9]{3})\b\s+([A-Z\u00c0-\uffff][A-Za-z\u00c0-\uffff'\- ]{2,40})", value)
     if not match:
         return None
     return match.group(1), clean_label(match.group(2))
@@ -224,8 +368,8 @@ def find_number(text: str, patterns: list[str]) -> float | None:
     return None
 
 
-def as_number(value: str | None) -> float | None:
-    if not value:
+def as_number(value: Any) -> float | None:
+    if value is None:
         return None
     cleaned = re.sub(r"[^0-9.,]", "", str(value))
     if not cleaned:
