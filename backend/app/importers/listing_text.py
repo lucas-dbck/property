@@ -30,6 +30,35 @@ LABELS = {
 
 EXPECTED_FIELDS = ["price", "city", "postcode", "property_type", "bedrooms", "bathrooms", "area_sqm", "energy_score"]
 
+LISTING_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "title": {"type": ["string", "null"]},
+        "source_url": {"type": ["string", "null"]},
+        "listing_id": {"type": ["string", "null"]},
+        "price": {"type": ["number", "null"]},
+        "purchase_price": {"type": ["number", "null"]},
+        "currency": {"type": ["string", "null"]},
+        "city": {"type": ["string", "null"]},
+        "postcode": {"type": ["string", "null"]},
+        "address": {"type": ["string", "null"]},
+        "property_type": {"type": ["string", "null"]},
+        "bedrooms": {"type": ["number", "null"]},
+        "bathrooms": {"type": ["number", "null"]},
+        "area_sqm": {"type": ["number", "null"]},
+        "energy_score": {"type": ["string", "null"]},
+        "condition": {"type": ["string", "null"]},
+        "amenities": {"type": "array", "items": {"type": "string"}},
+        "images": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": [
+        "title", "source_url", "listing_id", "price", "purchase_price", "currency", "city", "postcode",
+        "address", "property_type", "bedrooms", "bathrooms", "area_sqm", "energy_score", "condition",
+        "amenities", "images",
+    ],
+}
+
 
 def extract_listing_text_data(text: str, source_url: str | None = None) -> dict[str, Any]:
     fallback = extract_listing_text_with_rules(text, source_url)
@@ -42,73 +71,61 @@ def extract_listing_text_data(text: str, source_url: str | None = None) -> dict[
 def extract_listing_text_with_ai(text: str, source_url: str | None, fallback: dict[str, Any]) -> dict[str, Any] | None:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
+        fallback["ai_extraction_status"] = "not_configured"
         return None
 
-    prompt = {
+    user_content = {
         "source_url": source_url,
         "listing_text": text[:45000],
         "fallback_guess": fallback,
         "instructions": (
-            "Extract Belgian real-estate listing facts from listing_text. Return only JSON. "
-            "Use null when a value is not present. Do not invent a price, rooms, area, or energy label. "
-            "The URL may contain property_type, city, postcode, and listing_id, but usually not price. "
-            "For price return the sale asking price as a number in EUR. For area_sqm return living/habitable area. "
-            "For energy_score return only A+, A, B, C, D, E, F, or G when visible."
+            "Extract Belgian real-estate listing facts from listing_text. Use null when a value is not visible. "
+            "Do not invent a price, rooms, area, or energy label. The URL may contain property_type, city, "
+            "postcode, and listing_id, but usually not price. For price return the sale asking price as a number "
+            "in EUR. For area_sqm return living/habitable area. For energy_score return only A+, A, B, C, D, E, F, or G."
         ),
-        "json_shape": {
-            "title": "string or null",
-            "source_url": "string or null",
-            "listing_id": "string or null",
-            "price": "number or null",
-            "purchase_price": "number or null",
-            "currency": "EUR or null",
-            "city": "string or null",
-            "postcode": "string or null",
-            "address": "string or null",
-            "property_type": "apartment/house/studio/duplex/penthouse/land/commercial or null",
-            "bedrooms": "number or null",
-            "bathrooms": "number or null",
-            "area_sqm": "number or null",
-            "energy_score": "A+/A/B/C/D/E/F/G or null",
-            "condition": "new/renovated/good/average/to renovate/poor or null",
-            "amenities": "array of strings",
-            "images": "array of image URLs if present",
-        },
     }
 
     try:
-        with httpx.Client(timeout=30) as client:
+        with httpx.Client(timeout=35) as client:
             response = client.post(
-                "https://api.openai.com/v1/chat/completions",
+                "https://api.openai.com/v1/responses",
                 headers={
                     "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-                    "temperature": 0,
-                    "response_format": {"type": "json_object"},
-                    "messages": [
+                    "model": os.getenv("OPENAI_MODEL", "gpt-4.1-mini"),
+                    "input": [
                         {
                             "role": "system",
-                            "content": "You are a careful property listing data extractor. Return strict JSON only.",
+                            "content": "You extract real-estate listing data. Return only fields supported by the schema.",
                         },
-                        {"role": "user", "content": json.dumps(prompt, ensure_ascii=True)},
+                        {"role": "user", "content": json.dumps(user_content, ensure_ascii=True)},
                     ],
+                    "text": {
+                        "format": {
+                            "type": "json_schema",
+                            "name": "property_listing_extract",
+                            "strict": True,
+                            "schema": LISTING_SCHEMA,
+                        }
+                    },
                 },
             )
             response.raise_for_status()
-        content = response.json()["choices"][0]["message"]["content"]
-        parsed = json.loads(content)
+        parsed = json.loads(extract_response_text(response.json()))
     except Exception as exc:
         fallback["ai_extraction_status"] = "failed"
-        fallback["ai_error"] = str(exc)[:300]
+        fallback["ai_error"] = str(exc)[:500]
         return None
 
     extracted = sanitize_ai_result(parsed, source_url)
     merge_url_fields(extracted, source_url)
 
     for key, value in fallback.items():
+        if key in {"extraction_method", "ai_extraction_status", "ai_error"}:
+            continue
         if extracted.get(key) in (None, "", []):
             extracted[key] = value
 
@@ -116,9 +133,23 @@ def extract_listing_text_with_ai(text: str, source_url: str | None, fallback: di
         extracted["purchase_price"] = extracted["price"]
 
     extracted["source_url"] = source_url or extracted.get("source_url")
-    extracted["extraction_method"] = "openai_listing_text"
+    extracted["extraction_method"] = "openai_responses_listing_text"
     extracted["ai_extraction_status"] = "success"
     return finalize_extraction(extracted)
+
+
+def extract_response_text(payload: dict[str, Any]) -> str:
+    if isinstance(payload.get("output_text"), str):
+        return payload["output_text"]
+    for item in payload.get("output", []):
+        if not isinstance(item, dict):
+            continue
+        for content in item.get("content", []):
+            if isinstance(content, dict) and content.get("type") in {"output_text", "text"}:
+                text = content.get("text")
+                if isinstance(text, str):
+                    return text
+    raise ValueError("OpenAI response did not contain output text")
 
 
 def sanitize_ai_result(parsed: Any, source_url: str | None) -> dict[str, Any]:
