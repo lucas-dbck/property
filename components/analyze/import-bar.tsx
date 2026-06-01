@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { Download, Link2 } from "lucide-react"
 import { toast } from "sonner"
-import { api } from "@/lib/api/client"
+import { api, ApiError } from "@/lib/api/client"
 import type { ImmowebImportResponse } from "@/lib/api/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,18 +20,26 @@ export function ImportBar({ onImported }: { onImported: (result: ImmowebImportRe
     try {
       const result = await api.importImmoweb(url.trim())
       onImported(result)
-      const count = Object.keys(result.values).length
+      const count = Object.keys(result.values).filter((key) => result.values[key] !== "" && result.values[key] !== 0).length
       if (result.demo) {
         toast.warning(
-          `Backend unavailable — prefilled ${count} field${count === 1 ? "" : "s"} with sample data. Edit every value before trusting ROI.`,
+          `Backend unavailable - prefilled ${count} field${count === 1 ? "" : "s"} with sample data. Edit every value before trusting ROI.`,
         )
+      } else if (count === 0) {
+        toast.warning("Import finished, but no listing values were found. Enter the key values manually for now.")
       } else {
         toast.success(
-          `Imported ${count} field${count === 1 ? "" : "s"} as starting values — review before trusting ROI.`,
+          `Imported ${count} field${count === 1 ? "" : "s"} as starting values - review before trusting ROI.`,
         )
       }
-    } catch {
-      toast.error("Could not import that listing. Check the URL and try again.")
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        toast.error("Please log out and sign in again, then retry import.")
+      } else if (err instanceof ApiError) {
+        toast.error(err.message)
+      } else {
+        toast.error("Could not import that listing. Check the URL and try again.")
+      }
     } finally {
       setLoading(false)
     }
