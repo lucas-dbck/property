@@ -25,20 +25,6 @@ ENERGY_MULTIPLIERS = {
     "f": 0.9,
 }
 
-AMENITY_MULTIPLIERS = {
-    "balcony": 0.02,
-    "terrace": 0.03,
-    "garden": 0.04,
-    "parking": 0.04,
-    "garage": 0.04,
-    "lift": 0.015,
-    "elevator": 0.015,
-    "furnished": 0.05,
-    "renovated": 0.05,
-    "near metro": 0.025,
-    "public transport": 0.02,
-}
-
 
 @dataclass
 class RentEstimate:
@@ -58,14 +44,6 @@ def as_float(data: dict[str, Any], key: str, default: float = 0) -> float:
 
 def normalize_text(value: Any) -> str:
     return str(value or "").strip().lower()
-
-
-def normalize_amenities(value: Any) -> list[str]:
-    if isinstance(value, list):
-        return [normalize_text(item) for item in value if normalize_text(item)]
-    if isinstance(value, str):
-        return [normalize_text(item) for item in value.split(",") if normalize_text(item)]
-    return []
 
 
 def estimate_monthly_rent(data: dict[str, Any]) -> RentEstimate:
@@ -95,12 +73,6 @@ def estimate_monthly_rent(data: dict[str, Any]) -> RentEstimate:
         explanation.append(f"Energy score {energy_score.upper()} multiplier: {energy_multiplier:.2f}.")
     monthly_rent *= energy_multiplier
 
-    amenities = normalize_amenities(data.get("amenities"))
-    amenity_bonus = sum(AMENITY_MULTIPLIERS.get(item, 0) for item in amenities)
-    if amenity_bonus:
-        explanation.append(f"Amenity bonus: {amenity_bonus * 100:.1f}%.")
-    monthly_rent *= 1 + min(amenity_bonus, 0.2)
-
     condition = normalize_text(data.get("condition") or data.get("renovation_level"))
     condition_multipliers = {"poor": 0.9, "average": 1.0, "renovated": 1.06, "new": 1.08}
     condition_multiplier = condition_multipliers.get(condition, 1.0)
@@ -116,19 +88,11 @@ def calculate_roi(data: dict[str, Any]) -> dict[str, Any]:
 
     purchase_price = as_float(data, "purchase_price") or as_float(data, "price")
     renovation_cost = as_float(data, "renovation_cost")
-    closing_costs = as_float(data, "closing_costs") or purchase_price * (as_float(data, "closing_cost_rate", 0.12))
-    total_investment = purchase_price + renovation_cost + closing_costs
-
-    vacancy_rate = as_float(data, "vacancy_rate", 0.05)
-    annual_taxes = as_float(data, "annual_taxes") or as_float(data, "property_tax")
-    annual_insurance = as_float(data, "annual_insurance", 600)
-    monthly_maintenance = as_float(data, "monthly_maintenance", rent_estimate.monthly_rent * 0.08)
-    management_fee_rate = as_float(data, "management_fee_rate", 0)
+    purchase_costs = as_float(data, "purchase_costs") or as_float(data, "closing_costs")
+    total_investment = purchase_price + renovation_cost + purchase_costs
 
     annual_rent = rent_estimate.monthly_rent * 12
-    vacancy_loss = annual_rent * vacancy_rate
-    management_fees = annual_rent * management_fee_rate
-    annual_operating_costs = annual_taxes + annual_insurance + monthly_maintenance * 12 + vacancy_loss + management_fees
+    annual_operating_costs = get_annual_operating_costs(data, annual_rent, rent_estimate.monthly_rent)
     net_operating_income = annual_rent - annual_operating_costs
 
     down_payment = as_float(data, "down_payment")
@@ -143,12 +107,13 @@ def calculate_roi(data: dict[str, Any]) -> dict[str, Any]:
 
     annual_cash_flow = net_operating_income - annual_debt_service
     monthly_cash_flow = annual_cash_flow / 12
-    cash_invested = down_payment + renovation_cost + closing_costs if down_payment > 0 else total_investment
+    cash_invested = down_payment + renovation_cost + purchase_costs if down_payment > 0 else total_investment
 
     gross_yield = percentage(annual_rent, purchase_price)
     net_yield = percentage(net_operating_income, total_investment)
     cash_on_cash_return = percentage(annual_cash_flow, cash_invested)
 
+    vacancy_rate = as_float(data, "vacancy_rate", 0)
     roi_score = score_opportunity(net_yield, cash_on_cash_return, monthly_cash_flow, vacancy_rate)
 
     return {
@@ -157,7 +122,8 @@ def calculate_roi(data: dict[str, Any]) -> dict[str, Any]:
         "annual_rent": round(annual_rent, 2),
         "purchase_price": round(purchase_price, 2),
         "renovation_cost": round(renovation_cost, 2),
-        "closing_costs": round(closing_costs, 2),
+        "purchase_costs": round(purchase_costs, 2),
+        "closing_costs": round(purchase_costs, 2),
         "total_investment": round(total_investment, 2),
         "annual_operating_costs": round(annual_operating_costs, 2),
         "net_operating_income": round(net_operating_income, 2),
@@ -169,6 +135,22 @@ def calculate_roi(data: dict[str, Any]) -> dict[str, Any]:
         "cash_on_cash_return": round(cash_on_cash_return, 2),
         "roi_score": roi_score,
     }
+
+
+def get_annual_operating_costs(data: dict[str, Any], annual_rent: float, monthly_rent: float) -> float:
+    bucket = as_float(data, "annual_operating_costs") or as_float(data, "operating_costs")
+    if bucket > 0:
+        return bucket
+
+    vacancy_rate = as_float(data, "vacancy_rate", 0.05)
+    annual_taxes = as_float(data, "annual_taxes") or as_float(data, "property_tax")
+    annual_insurance = as_float(data, "annual_insurance", 600)
+    monthly_maintenance = as_float(data, "monthly_maintenance", monthly_rent * 0.08)
+    management_fee_rate = as_float(data, "management_fee_rate", 0)
+
+    vacancy_loss = annual_rent * vacancy_rate
+    management_fees = annual_rent * management_fee_rate
+    return annual_taxes + annual_insurance + monthly_maintenance * 12 + vacancy_loss + management_fees
 
 
 def calculate_monthly_payment(loan_amount: float, annual_interest_rate: float, loan_years: float) -> float:

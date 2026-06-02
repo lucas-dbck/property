@@ -103,9 +103,7 @@ function formatApiMessage(value: unknown): string | null {
 }
 
 async function parseResponse<T>(res: Response, allowDemoFallback: boolean): Promise<T> {
-  if (res.status === 503 && allowDemoFallback) {
-    throw new BackendUnavailable()
-  }
+  if (res.status === 503 && allowDemoFallback) throw new BackendUnavailable()
 
   const text = await res.text()
   let data: unknown = null
@@ -207,19 +205,15 @@ function backendToInputValues(data: Record<string, unknown> = {}): InputValues {
     bathrooms: toNumber(data.bathrooms),
     property_type: String(firstValue(data, ["property_type", "propertyType"]) ?? ""),
     energy_score: String(firstValue(data, ["energy_score", "epc_score", "epcScore"]) ?? ""),
-    amenities: Array.isArray(data.amenities) ? data.amenities.join(", ") : String(firstValue(data, ["amenities"]) ?? ""),
     condition: String(firstValue(data, ["condition"]) ?? ""),
     monthly_rent: toNumber(firstValue(data, ["monthly_rent", "estimated_rent", "expected_monthly_rent", "monthlyRent"])),
     renovation_cost: toNumber(firstValue(data, ["renovation_cost", "renovationBudget"])),
-    closing_cost_rate: rateToDecimal(firstValue(data, ["closing_cost_rate", "registrationTaxRate"]), 0.12),
+    purchase_costs: toNumber(firstValue(data, ["purchase_costs", "closing_costs"])),
+    annual_operating_costs: toNumber(firstValue(data, ["annual_operating_costs", "operating_costs"])),
     vacancy_rate: rateToDecimal(firstValue(data, ["vacancy_rate", "vacancyRate"]), 0.05),
     down_payment: downPayment !== undefined ? toNumber(downPayment) : price * 0.2,
     interest_rate: toNumber(firstValue(data, ["interest_rate", "interestRate"])),
     loan_years: toNumber(firstValue(data, ["loan_years", "loanTermYears"]), 25),
-    annual_insurance: toNumber(firstValue(data, ["annual_insurance", "annualInsurance"]), 600),
-    annual_taxes: toNumber(firstValue(data, ["annual_taxes", "property_tax", "annualPropertyTax"])),
-    monthly_maintenance: toNumber(firstValue(data, ["monthly_maintenance", "monthlyMaintenance"])),
-    management_fee_rate: rateToDecimal(firstValue(data, ["management_fee_rate", "managementRate"])),
   }
 }
 
@@ -235,18 +229,14 @@ function inputToBackendData(values: InputValues): Record<string, unknown> {
     bathrooms: firstValue(values, ["bathrooms"]),
     property_type: firstValue(values, ["property_type", "propertyType"]),
     energy_score: firstValue(values, ["energy_score", "epcScore"]),
-    amenities: firstValue(values, ["amenities"]),
     monthly_rent: firstValue(values, ["monthly_rent", "monthlyRent"]),
     renovation_cost: firstValue(values, ["renovation_cost", "renovationBudget"]),
-    closing_cost_rate: rateToDecimal(firstValue(values, ["closing_cost_rate", "registrationTaxRate"]), 0.12),
+    purchase_costs: firstValue(values, ["purchase_costs", "closing_costs"]),
+    annual_operating_costs: firstValue(values, ["annual_operating_costs", "operatingCosts"]),
     vacancy_rate: rateToDecimal(firstValue(values, ["vacancy_rate", "vacancyRate"]), 0.05),
     down_payment: downPayment !== undefined ? toNumber(downPayment) : purchasePrice * 0.2,
     interest_rate: firstValue(values, ["interest_rate", "interestRate"]),
     loan_years: firstValue(values, ["loan_years", "loanTermYears"]),
-    annual_insurance: firstValue(values, ["annual_insurance", "annualInsurance"]),
-    annual_taxes: firstValue(values, ["annual_taxes", "annualPropertyTax"]),
-    monthly_maintenance: firstValue(values, ["monthly_maintenance", "monthlyMaintenance"]),
-    management_fee_rate: rateToDecimal(firstValue(values, ["management_fee_rate", "managementRate"])),
     condition: firstValue(values, ["condition"]),
   }
 }
@@ -324,20 +314,30 @@ function defaultOptionsForField(key: string) {
 }
 
 function backendTemplateToFrontend(template: { fields: Array<Record<string, unknown>> }): InputTemplate {
+  const hidden = new Set([
+    "amenities",
+    "closing_cost_rate",
+    "annual_taxes",
+    "annual_insurance",
+    "monthly_maintenance",
+    "management_fee_rate",
+  ])
   return {
-    fields: template.fields.map((field) => {
-      const key = String(field.key)
-      return {
-        key,
-        label: String(field.label),
-        type: field.value_type === "list" ? "text" : field.value_type === "url" ? "text" : (field.value_type as any),
-        group: String(field.group ?? ""),
-        defaultValue: field.default as string | number | boolean | undefined,
-        options: Array.isArray(field.options) ? field.options as { label: string; value: string }[] : defaultOptionsForField(key),
-        helpText: String(field.description ?? ""),
-        required: Boolean(field.required_for_roi),
-      }
-    }),
+    fields: template.fields
+      .filter((field) => !hidden.has(String(field.key)))
+      .map((field) => {
+        const key = String(field.key)
+        return {
+          key,
+          label: String(field.label),
+          type: field.value_type === "list" ? "text" : field.value_type === "url" ? "text" : (field.value_type as any),
+          group: String(field.group ?? ""),
+          defaultValue: field.default as string | number | boolean | undefined,
+          options: Array.isArray(field.options) ? field.options as { label: string; value: string }[] : defaultOptionsForField(key),
+          helpText: String(field.description ?? ""),
+          required: Boolean(field.required_for_roi),
+        }
+      }),
   }
 }
 

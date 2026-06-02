@@ -15,15 +15,15 @@ from ..models import ImportSource, InvestmentOpportunity, User
 from ..schemas import (
     ImmowebImportRequest,
     InvestmentOpportunityCreate,
+    InvestmentOpportunityRead,
+    InvestmentOpportunityUpdate,
+    OpportunityAnalysisRead,
     OpportunityComparisonItem,
     OpportunityComparisonRead,
-    OpportunityAnalysisRead,
     OpportunityInputField,
     OpportunityInputTemplateRead,
     OpportunityQuickAnalysisRead,
     OpportunityQuickAnalysisRequest,
-    InvestmentOpportunityRead,
-    InvestmentOpportunityUpdate,
 )
 
 router = APIRouter(prefix="/opportunities", tags=["opportunities"])
@@ -237,15 +237,6 @@ def read_opportunity_input_template() -> OpportunityInputTemplateRead:
                 example="B",
             ),
             OpportunityInputField(
-                key="amenities",
-                label="Amenities",
-                group="property",
-                value_type="list",
-                imported=True,
-                description="Features that can improve rent, such as balcony, terrace, parking, lift, or furnished.",
-                example=["balcony", "parking"],
-            ),
-            OpportunityInputField(
                 key="condition",
                 label="Condition",
                 group="property",
@@ -259,7 +250,7 @@ def read_opportunity_input_template() -> OpportunityInputTemplateRead:
                 label="Expected monthly rent",
                 group="income",
                 value_type="number",
-                description="Manual rent estimate. If empty, the backend estimates rent from city, area, energy score, and amenities.",
+                description="Manual rent estimate. If empty, the backend estimates rent from city, area, and energy score.",
                 example=1350,
             ),
             OpportunityInputField(
@@ -273,39 +264,22 @@ def read_opportunity_input_template() -> OpportunityInputTemplateRead:
                 default=0,
             ),
             OpportunityInputField(
-                key="closing_cost_rate",
-                label="Closing cost rate",
-                group="costs",
-                value_type="percent",
-                description="Belgian purchase costs as a percentage of price. Default is 12%.",
-                example=0.12,
-                default=0.12,
-            ),
-            OpportunityInputField(
-                key="annual_taxes",
-                label="Annual taxes",
+                key="purchase_costs",
+                label="Purchase costs",
                 group="costs",
                 value_type="number",
-                description="Estimated yearly property taxes.",
-                example=1200,
+                description="One-time purchase costs such as registration, notary, and deed fees.",
+                example=36000,
                 default=0,
             ),
             OpportunityInputField(
-                key="annual_insurance",
-                label="Annual insurance",
+                key="annual_operating_costs",
+                label="Annual operating costs",
                 group="costs",
                 value_type="number",
-                description="Estimated yearly insurance cost.",
-                example=650,
-                default=600,
-            ),
-            OpportunityInputField(
-                key="monthly_maintenance",
-                label="Monthly maintenance",
-                group="costs",
-                value_type="number",
-                description="Monthly maintenance reserve. If empty, backend estimates 8% of rent.",
-                example=120,
+                description="One yearly bucket for maintenance, tax, insurance, and management costs.",
+                example=3000,
+                default=0,
             ),
             OpportunityInputField(
                 key="vacancy_rate",
@@ -349,10 +323,7 @@ def read_opportunity_input_template() -> OpportunityInputTemplateRead:
 @router.post("/analyze", response_model=OpportunityQuickAnalysisRead)
 def analyze_opportunity_inputs(payload: OpportunityQuickAnalysisRequest) -> OpportunityQuickAnalysisRead:
     final_data = payload.data
-    return OpportunityQuickAnalysisRead(
-        final_data=final_data,
-        analysis=calculate_roi(final_data),
-    )
+    return OpportunityQuickAnalysisRead(final_data=final_data, analysis=calculate_roi(final_data))
 
 
 @router.get("/compare", response_model=OpportunityComparisonRead)
