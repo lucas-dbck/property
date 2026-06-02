@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import useSWR from "swr"
-import { Save } from "lucide-react"
+import { AlertCircle, CheckCircle2, Save } from "lucide-react"
 import { toast } from "sonner"
 import { api, ApiError } from "@/lib/api/client"
-import type { ImmowebImportResponse, Opportunity } from "@/lib/api/types"
+import type { ImmowebImportResponse, ImportFeedback, Opportunity } from "@/lib/api/types"
 import { useRoiInputs } from "@/hooks/use-roi-inputs"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { PageHeader } from "@/components/page-header"
@@ -38,6 +38,7 @@ export function AnalyzeWorkspace() {
 
   const [title, setTitle] = useState("")
   const [meta, setMeta] = useState<ImmowebImportResponse["meta"]>()
+  const [importFeedback, setImportFeedback] = useState<ImportFeedback | undefined>()
   const [saving, setSaving] = useState(false)
   const [initialized, setInitialized] = useState(false)
 
@@ -56,6 +57,7 @@ export function AnalyzeWorkspace() {
 
   function handleImported(result: ImmowebImportResponse) {
     applyImport(result.values)
+    setImportFeedback(result.feedback)
     if (result.meta) {
       setMeta(result.meta)
       if (!title && result.meta.title) setTitle(result.meta.title)
@@ -141,6 +143,8 @@ export function AnalyzeWorkspace() {
             </Card>
           )}
 
+          {importFeedback && <ImportFeedbackPanel feedback={importFeedback} />}
+
           <ReviewBanner pendingCount={importedPending.length} />
 
           <Card>
@@ -177,6 +181,63 @@ export function AnalyzeWorkspace() {
             <RoiResultPanel analysis={analysis} isLoading={analyzing} isValidating={isValidating} />
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function ImportFeedbackPanel({ feedback }: { feedback: ImportFeedback }) {
+  const found = feedback.found.length ? feedback.found : ["No basics found"]
+  const missing = feedback.missing
+  const goodResult = missing.length === 0 && feedback.found.length > 0
+
+  return (
+    <div className="rounded-md border bg-background p-4 shadow-sm">
+      <div className="flex items-start gap-3">
+        {goodResult ? (
+          <CheckCircle2 className="mt-0.5 size-5 text-emerald-600" />
+        ) : (
+          <AlertCircle className="mt-0.5 size-5 text-amber-600" />
+        )}
+        <div className="min-w-0 flex-1 space-y-3">
+          <div>
+            <h3 className="text-sm font-semibold">Import result</h3>
+            {feedback.message && <p className="mt-1 text-sm text-muted-foreground">{feedback.message}</p>}
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <ImportFeedbackList title="Found" items={found} tone="found" />
+            <ImportFeedbackList title="Still missing" items={missing.length ? missing : ["Nothing critical"]} tone="missing" />
+          </div>
+
+          {(feedback.status || feedback.method) && (
+            <p className="text-xs text-muted-foreground">
+              Status: {feedback.status || "unknown"}{feedback.method ? ` - Method: ${feedback.method}` : ""}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ImportFeedbackList({ title, items, tone }: { title: string; items: string[]; tone: "found" | "missing" }) {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-medium uppercase text-muted-foreground">{title}</p>
+      <div className="flex flex-wrap gap-2">
+        {items.map((item) => (
+          <span
+            key={item}
+            className={
+              tone === "found"
+                ? "rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700"
+                : "rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700"
+            }
+          >
+            {item}
+          </span>
+        ))}
       </div>
     </div>
   )

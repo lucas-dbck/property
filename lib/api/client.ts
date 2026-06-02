@@ -42,6 +42,14 @@ type BackendCompare = {
   }>
 }
 
+const importBasics = [
+  { key: "purchase_price", backendKeys: ["purchase_price", "price"], label: "Price" },
+  { key: "city", backendKeys: ["city", "locality"], label: "City" },
+  { key: "area_sqm", backendKeys: ["area_sqm", "living_area", "size_sqm"], label: "Living area" },
+  { key: "bedrooms", backendKeys: ["bedrooms"], label: "Bedrooms" },
+  { key: "energy_score", backendKeys: ["energy_score", "epc_score", "epcScore"], label: "Energy score" },
+]
+
 export function getToken(): string | null {
   if (typeof window === "undefined") return null
   return window.localStorage.getItem(TOKEN_KEY)
@@ -193,6 +201,13 @@ function firstValue(source: Record<string, unknown>, keys: string[]) {
   return undefined
 }
 
+function hasUsefulValue(value: unknown): boolean {
+  if (value === undefined || value === null || value === "") return false
+  if (typeof value === "number") return value !== 0
+  if (typeof value === "string") return value.trim() !== "" && value !== "0"
+  return true
+}
+
 function backendToInputValues(data: Record<string, unknown> = {}): InputValues {
   const price = toNumber(firstValue(data, ["purchase_price", "price", "purchasePrice"]))
   const downPayment = firstValue(data, ["down_payment", "downPayment"])
@@ -239,6 +254,27 @@ function inputToBackendData(values: InputValues): Record<string, unknown> {
     loan_years: firstValue(values, ["loan_years", "loanTermYears"]),
     condition: firstValue(values, ["condition"]),
   }
+}
+
+function buildImportFeedback(data: Record<string, unknown>, values: InputValues): ImmowebImportResponse["feedback"] {
+  const extracted = Array.isArray(data.extracted_fields) ? data.extracted_fields.map(String) : []
+  const found = importBasics
+    .filter((field) => field.backendKeys.some((key) => extracted.includes(key)) || hasUsefulValue(values[field.key]))
+    .map((field) => field.label)
+  const missing = importBasics.filter((field) => !found.includes(field.label)).map((field) => field.label)
+  const status = String(data.extraction_status ?? "") || undefined
+  const method = String(data.extraction_method ?? "") || undefined
+  const aiStatus = String(data.ai_extraction_status ?? "")
+  const aiError = String(data.ai_error ?? "")
+  const message = aiStatus === "failed"
+    ? `AI extraction failed: ${aiError || "check OpenAI API credits or billing."}`
+    : aiStatus === "not_configured"
+      ? "AI extraction is not active, so the app used the free parser."
+      : missing.length > 0
+        ? "Some basics still need manual entry."
+        : "Review the imported values before trusting ROI."
+
+  return { found, missing, status, method, message }
 }
 
 function metric(key: string, label: string, value: unknown, format: "currency" | "percent" | "number" | "years", description?: string) {
@@ -292,8 +328,10 @@ function backendOpportunityToFrontend(item: BackendOpportunity): Opportunity {
 
 function backendImportToFrontend(item: BackendOpportunity): ImmowebImportResponse {
   const data = item.final_data || item.imported_data || {}
+  const values = backendToInputValues({ ...data, source_url: item.source_url })
   return {
-    values: backendToInputValues({ ...data, source_url: item.source_url }),
+    values,
+    feedback: buildImportFeedback(data, values),
     meta: {
       title: item.title,
       listingUrl: item.source_url || undefined,

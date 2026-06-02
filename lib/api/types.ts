@@ -21,7 +21,7 @@ export interface TemplateField {
   label: string
   type: FieldType
   group?: string // e.g. "Property" | "Finance" | "Operating costs"
-  unit?: string // e.g. "€", "%", "m²"
+  unit?: string // e.g. "EUR", "%", "m2"
   defaultValue?: string | number | boolean
   options?: { label: string; value: string }[] // for select
   min?: number
@@ -39,7 +39,15 @@ export interface InputTemplate {
 
 export type InputValues = Record<string, string | number | boolean>
 
-// ----- Immoweb import (POST /opportunities/imports/immoweb) -----
+// ----- Imports (POST /opportunities/imports/...) -----
+
+export interface ImportFeedback {
+  found: string[]
+  missing: string[]
+  status?: string
+  method?: string
+  message?: string
+}
 
 export interface ImmowebImportResponse {
   // Values to prefill the form with. Treated as STARTING values only.
@@ -47,6 +55,7 @@ export interface ImmowebImportResponse {
   // True when this came from the preview demo fallback (backend unreachable),
   // not a real listing import. Lets the UI warn the user the numbers are sample data.
   demo?: boolean
+  feedback?: ImportFeedback
   // Optional metadata about the source listing.
   meta?: {
     title?: string
