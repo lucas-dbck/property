@@ -79,3 +79,31 @@ def test_regex_fallback_requires_specific_labels():
     assert result["bedrooms"] == 1
     assert result["area_sqm"] == 64
     assert result["energy_score"] == "C"
+
+
+def test_extracts_city_from_url_and_plain_euro_price_text():
+    html = """
+    <html>
+      <body>
+        Javascript required.
+        Appartement te koop
+        425000€
+        2 slaapkamers | 119 m²
+        EPC B
+      </body>
+    </html>
+    """
+
+    result = extract_immoweb_listing(
+        html,
+        "https://www.immoweb.be/en/classified/apartment/for-sale/duffel/2570/21603852",
+    )
+
+    assert result["price"] == 425000
+    assert result["city"] == "Duffel"
+    assert result["postcode"] == "2570"
+    assert result["property_type"] == "apartment"
+    assert result["listing_id"] == "21603852"
+    assert result["bedrooms"] == 2
+    assert result["area_sqm"] == 119
+    assert result["energy_score"] == "B"
