@@ -153,6 +153,36 @@ def test_extracts_price_from_messy_next_flight_page_script():
 
     assert result["price"] == 385000
     assert result["purchase_price"] == 385000
+    assert result["monthly_rent"] > 0
+    assert result["city"] == "Malderen"
+    assert result["postcode"] == "1840"
+    assert result["bedrooms"] == 3
+    assert result["area_sqm"] == 140
+
+
+def test_extracts_price_from_window_classified_script():
+    html = """
+    <html>
+      <body>
+        <script>
+          window.classified = {
+            price: { mainValue: 385000, currency: "EUR" },
+            property: { bedroomCount: 3, netHabitableSurface: 140 },
+            address: { locality: "Malderen", postalCode: "1840" }
+          };
+        </script>
+      </body>
+    </html>
+    """
+
+    result = extract_immoweb_listing(
+        html,
+        "https://www.immoweb.be/en/classified/house/for-sale/malderen/1840/21603899",
+    )
+
+    assert result["price"] == 385000
+    assert result["purchase_price"] == 385000
+    assert result["monthly_rent"] == 1890
     assert result["city"] == "Malderen"
     assert result["postcode"] == "1840"
     assert result["bedrooms"] == 3
@@ -182,6 +212,7 @@ def test_extracts_formatted_price_from_webpage_json():
     )
 
     assert result["price"] == 425000
+    assert result["monthly_rent"] == 1666
     assert result["city"] == "Duffel"
     assert result["bedrooms"] == 2
     assert result["area_sqm"] == 119

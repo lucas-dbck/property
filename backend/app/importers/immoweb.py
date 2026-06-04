@@ -7,7 +7,7 @@ from urllib.parse import quote, unquote, urlparse
 
 import httpx
 
-from app.analysis import rent_rate_for_location
+from app.analysis import estimate_monthly_rent, rent_rate_for_location
 
 
 class JsonLdParser(HTMLParser):
@@ -109,6 +109,7 @@ def finalize_extraction(extracted: dict[str, Any]) -> dict[str, Any]:
     if extracted.get("price") and not extracted.get("purchase_price"):
         extracted["purchase_price"] = extracted["price"]
     add_default_assumptions(extracted)
+    add_estimated_rent(extracted)
     extracted_fields = [field for field in EXPECTED_FIELDS if extracted.get(field) not in (None, "", [])]
     missing_fields = [field for field in EXPECTED_FIELDS if field not in extracted_fields]
     extracted["extracted_fields"] = extracted_fields
@@ -144,6 +145,16 @@ def add_default_assumptions(extracted: dict[str, Any]) -> None:
     extracted.setdefault("interest_rate", 3.5)
     extracted.setdefault("loan_years", 25)
     extracted.setdefault("vacancy_rate", 0.05)
+
+
+def add_estimated_rent(extracted: dict[str, Any]) -> None:
+    if extracted.get("monthly_rent") or extracted.get("estimated_rent"):
+        return
+    rent_estimate = estimate_monthly_rent(extracted)
+    if rent_estimate.monthly_rent > 0:
+        extracted["monthly_rent"] = rent_estimate.monthly_rent
+        extracted["estimated_rent"] = rent_estimate.monthly_rent
+        extracted["rent_estimation_explanation"] = rent_estimate.explanation
 
 
 def needs_search_fallback(extracted: dict[str, Any]) -> bool:
@@ -348,19 +359,25 @@ def merge_raw_json_patterns(extracted: dict[str, Any], html: str) -> None:
     raw = normalize_raw_page_text(html)
     raw_patterns = {
         "price": [
+            r'(?:window\.)?classified\s*=\s*\{[\s\S]{0,2000}(?:["\']?price["\']?\s*:\s*\{[\s\S]{0,500}["\']?mainValue["\']?\s*:\s*"?([0-9][0-9. ,\u00a0]{4,})"?)',
+            r'["\']?price["\']?\s*:\s*\{[^{}]{0,800}["\']?(?:mainValue|value|amount)["\']?\s*:\s*"?([0-9][0-9. ,\u00a0]{4,})"?',
             r'"price"\s*:\s*\{[^{}]{0,800}"(?:mainValue|value|amount)"\s*:\s*"?([0-9][0-9. ,\u00a0]{4,})"?',
+            r'["\']?(?:mainValue|salePrice|transactionPrice|askingPrice)["\']?\s*:\s*"?([0-9][0-9. ,\u00a0]{4,})"?',
             r'"(?:mainValue|salePrice|transactionPrice|askingPrice|amount)"\s*:\s*"?([0-9][0-9. ,\u00a0]{4,})"?[^{}]{0,120}"(?:EUR|€)"',
             r'"(?:mainValue|salePrice|transactionPrice|askingPrice)"\s*:\s*"?([0-9][0-9. ,\u00a0]{4,})"?',
             r'"(?:formattedPrice|priceFormatted|priceLabel|displayPrice)"\s*:\s*"[^"]*(?:EUR|€)\s*([0-9][0-9. ,\u00a0]{4,})',
             r'"(?:price|prix|prijs)"\s*:\s*"[^"]*(?:EUR|€)\s*([0-9][0-9. ,\u00a0]{4,})',
         ],
         "bedrooms": [
+            r'["\']?(?:bedroomCount|numberOfBedrooms|bedrooms)["\']?\s*:\s*([0-9]+)',
             r'"(?:bedroomCount|numberOfBedrooms|bedrooms)"\s*:\s*([0-9]+)',
         ],
         "bathrooms": [
+            r'["\']?(?:bathroomCount|numberOfBathrooms|bathrooms)["\']?\s*:\s*([0-9]+)',
             r'"(?:bathroomCount|numberOfBathrooms|bathrooms)"\s*:\s*([0-9]+)',
         ],
         "area_sqm": [
+            r'["\']?(?:netHabitableSurface|habitableSurface|livingArea|surface)["\']?\s*:\s*(?:\{["\']?value["\']?\s*:\s*)?([0-9]{2,4})',
             r'"(?:netHabitableSurface|habitableSurface|livingArea|surface)"\s*:\s*(?:\{"value"\s*:\s*)?([0-9]{2,4})',
         ],
     }
@@ -373,12 +390,15 @@ def merge_raw_json_patterns(extracted: dict[str, Any], html: str) -> None:
 
     text_patterns = {
         "city": [
+            r'["\']?(?:locality|city|municipality)["\']?\s*:\s*["\']([^"\']{2,80})["\']',
             r'"(?:locality|city|municipality)"\s*:\s*"([^"]{2,80})"',
         ],
         "postcode": [
+            r'["\']?(?:postalCode|postcode|zip)["\']?\s*:\s*["\']?(1[0-9]{3}|[2-9][0-9]{3})["\']?',
             r'"(?:postalCode|postcode|zip)"\s*:\s*"?(1[0-9]{3}|[2-9][0-9]{3})"?',
         ],
         "energy_score": [
+            r'["\']?(?:epcScore|energyScore|energyClass|peb)["\']?\s*:\s*["\']?([A-G]\+?)["\']?',
             r'"(?:epcScore|energyScore|energyClass|peb)"\s*:\s*"?([A-G]\+?)"?',
         ],
     }
