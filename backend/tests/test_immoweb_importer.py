@@ -135,6 +135,58 @@ def test_extracts_raw_immoweb_json_fields_when_scripts_are_not_valid_json():
     assert result["energy_score"] == "B"
 
 
+def test_extracts_price_from_messy_next_flight_page_script():
+    html = """
+    <html>
+      <body>
+        <script>
+          self.__next_f.push([1, "classified", "{\\"classified\\":{\\"price\\":{\\"mainValue\\":385000,\\"currency\\":\\"EUR\\"},\\"property\\":{\\"bedroomCount\\":3,\\"netHabitableSurface\\":140},\\"address\\":{\\"locality\\":\\"Malderen\\",\\"postalCode\\":\\"1840\\"}}}"])
+        </script>
+      </body>
+    </html>
+    """
+
+    result = extract_immoweb_listing(
+        html,
+        "https://www.immoweb.be/en/classified/house/for-sale/malderen/1840/21603899",
+    )
+
+    assert result["price"] == 385000
+    assert result["purchase_price"] == 385000
+    assert result["city"] == "Malderen"
+    assert result["postcode"] == "1840"
+    assert result["bedrooms"] == 3
+    assert result["area_sqm"] == 140
+
+
+def test_extracts_formatted_price_from_webpage_json():
+    html = """
+    <html>
+      <body>
+        <script>
+          window.__DATA__ = {
+            "classified": {
+              "formattedPrice": "€ 425.000",
+              "property": {"bedroomCount": 2, "netHabitableSurface": 119},
+              "address": {"locality": "Duffel", "postalCode": "2570"}
+            }
+          }
+        </script>
+      </body>
+    </html>
+    """
+
+    result = extract_immoweb_listing(
+        html,
+        "https://www.immoweb.be/en/classified/apartment/for-sale/duffel/2570/21603852",
+    )
+
+    assert result["price"] == 425000
+    assert result["city"] == "Duffel"
+    assert result["bedrooms"] == 2
+    assert result["area_sqm"] == 119
+
+
 def test_import_uses_search_fallback_when_direct_listing_is_incomplete(monkeypatch):
     listing_url = "https://www.immoweb.be/en/classified/apartment/for-sale/duffel/2570/21603852"
     direct_html = "<html><body>Javascript required</body></html>"

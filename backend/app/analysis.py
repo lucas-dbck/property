@@ -1,18 +1,59 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from typing import Any
+import unicodedata
 
 
 CITY_RENT_PER_SQM = {
     "brussels": 18.0,
+    "bruxelles": 18.0,
+    "etterbeek": 19.0,
+    "ixelles": 20.0,
+    "elsene": 20.0,
+    "uccle": 19.0,
+    "ukkel": 19.0,
+    "schaerbeek": 17.0,
+    "schaarbeek": 17.0,
+    "anderlecht": 15.5,
+    "saint-gilles": 18.0,
+    "sint-gillis": 18.0,
+    "woluwe-saint-pierre": 19.0,
+    "sint-pieters-woluwe": 19.0,
+    "woluwe-saint-lambert": 18.5,
+    "sint-lambrechts-woluwe": 18.5,
     "antwerp": 16.0,
+    "antwerpen": 16.0,
     "ghent": 17.0,
+    "gent": 17.0,
     "leuven": 19.0,
     "mechelen": 15.5,
+    "duffel": 14.0,
+    "zemst": 14.5,
+    "malderen": 13.5,
+    "londerzeel": 13.5,
+    "vilvoorde": 15.0,
+    "grimbergen": 15.0,
+    "zaventem": 16.0,
+    "waterloo": 17.0,
+    "aalst": 13.5,
     "bruges": 15.0,
+    "brugge": 15.0,
+    "kortrijk": 13.5,
+    "ostend": 14.0,
+    "oostende": 14.0,
+    "sint-niklaas": 13.5,
+    "turnhout": 13.0,
+    "hasselt": 13.5,
+    "genk": 12.0,
+    "namur": 12.0,
+    "namen": 12.0,
+    "mons": 11.0,
+    "bergen": 11.0,
     "charleroi": 10.5,
     "liege": 12.0,
+    "luik": 12.0,
 }
 
 ENERGY_MULTIPLIERS = {
@@ -46,6 +87,46 @@ def normalize_text(value: Any) -> str:
     return str(value or "").strip().lower()
 
 
+def normalize_location(value: Any) -> str:
+    text = normalize_text(value).replace("_", "-")
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(char for char in text if not unicodedata.combining(char))
+    text = re_collapse_non_words(text)
+    return text
+
+
+def re_collapse_non_words(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", text).strip("-")
+
+
+def rent_rate_for_location(city: Any, postcode: Any = None) -> tuple[float, str]:
+    city_key = normalize_location(city)
+    if city_key in CITY_RENT_PER_SQM:
+        return CITY_RENT_PER_SQM[city_key], city_key
+
+    raw_postcode = str(postcode or "").strip()
+    if raw_postcode.isdigit():
+        code = int(raw_postcode)
+        if 1000 <= code <= 1299:
+            return 18.0, f"postcode {raw_postcode}"
+        if 2000 <= code <= 2999:
+            return 15.0, f"postcode {raw_postcode}"
+        if 3000 <= code <= 3499:
+            return 16.5, f"postcode {raw_postcode}"
+        if 1500 <= code <= 1999:
+            return 15.0, f"postcode {raw_postcode}"
+        if 9000 <= code <= 9999:
+            return 14.5, f"postcode {raw_postcode}"
+        if 8000 <= code <= 8999:
+            return 14.0, f"postcode {raw_postcode}"
+        if 3500 <= code <= 3999:
+            return 13.0, f"postcode {raw_postcode}"
+        if 4000 <= code <= 7999:
+            return 11.5, f"postcode {raw_postcode}"
+
+    return 14.0, city_key or "unknown city"
+
+
 def estimate_monthly_rent(data: dict[str, Any]) -> RentEstimate:
     known_rent = as_float(data, "monthly_rent") or as_float(data, "expected_monthly_rent") or as_float(data, "estimated_rent")
     if known_rent > 0:
@@ -54,11 +135,12 @@ def estimate_monthly_rent(data: dict[str, Any]) -> RentEstimate:
             explanation=["Used rent provided by the user or imported listing data."],
         )
 
-    city = normalize_text(data.get("city"))
+    city = data.get("city")
+    postcode = data.get("postcode") or data.get("postal_code")
     area_sqm = as_float(data, "area_sqm") or as_float(data, "living_area") or as_float(data, "size_sqm")
     bedrooms = as_float(data, "bedrooms")
-    base_rent_per_sqm = CITY_RENT_PER_SQM.get(city, 14.0)
-    explanation = [f"Base rent for {city or 'unknown city'}: EUR {base_rent_per_sqm:.2f}/m2."]
+    base_rent_per_sqm, location_label = rent_rate_for_location(city, postcode)
+    explanation = [f"Base rent for {location_label}: EUR {base_rent_per_sqm:.2f}/m2."]
 
     if area_sqm > 0:
         monthly_rent = area_sqm * base_rent_per_sqm

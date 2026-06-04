@@ -356,6 +356,51 @@ def test_quick_analyze_estimates_missing_cost_assumptions():
     assert analysis["total_investment"] > 385000
 
 
+def test_city_and_postcode_influence_estimated_rent():
+    leuven_response = client.post(
+        "/opportunities/analyze",
+        json={
+            "data": {
+                "city": "Leuven",
+                "postcode": "3000",
+                "area_sqm": 80,
+                "purchase_price": 300000,
+            }
+        },
+    )
+    charleroi_response = client.post(
+        "/opportunities/analyze",
+        json={
+            "data": {
+                "city": "Charleroi",
+                "postcode": "6000",
+                "area_sqm": 80,
+                "purchase_price": 300000,
+            }
+        },
+    )
+    duffel_response = client.post(
+        "/opportunities/analyze",
+        json={
+            "data": {
+                "city": "Duffel",
+                "postcode": "2570",
+                "area_sqm": 80,
+                "purchase_price": 300000,
+            }
+        },
+    )
+
+    assert leuven_response.status_code == 200
+    assert charleroi_response.status_code == 200
+    assert duffel_response.status_code == 200
+    leuven_rent = leuven_response.json()["analysis"]["estimated_monthly_rent"]
+    charleroi_rent = charleroi_response.json()["analysis"]["estimated_monthly_rent"]
+    duffel_rent = duffel_response.json()["analysis"]["estimated_monthly_rent"]
+
+    assert leuven_rent > duffel_rent > charleroi_rent
+
+
 def test_compare_investment_opportunities():
     register_user()
     token = login_user()

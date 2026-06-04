@@ -7,6 +7,8 @@ from urllib.parse import quote, unquote, urlparse
 
 import httpx
 
+from app.analysis import rent_rate_for_location
+
 
 class JsonLdParser(HTMLParser):
     def __init__(self) -> None:
@@ -60,6 +62,14 @@ def fetch_listing_html(url: str) -> str:
         ),
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9,nl;q=0.8,fr;q=0.8",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+        "DNT": "1",
+        "Referer": "https://www.immoweb.be/",
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "same-origin",
     }
     with httpx.Client(timeout=20, follow_redirects=True, headers=headers) as client:
         response = client.get(url)
@@ -126,17 +136,7 @@ def add_default_assumptions(extracted: dict[str, Any]) -> None:
         }.get(condition, 250)
         extracted["renovation_cost"] = round(area_sqm * cost_per_sqm, 2)
     if area_sqm > 0 and not extracted.get("annual_operating_costs"):
-        city = str(extracted.get("city") or "").strip().lower()
-        rent_per_sqm = {
-            "brussels": 18,
-            "antwerp": 16,
-            "ghent": 17,
-            "leuven": 19,
-            "mechelen": 15.5,
-            "bruges": 15,
-            "charleroi": 10.5,
-            "liege": 12,
-        }.get(city, 14)
+        rent_per_sqm, _ = rent_rate_for_location(extracted.get("city"), extracted.get("postcode"))
         estimated_annual_rent = area_sqm * rent_per_sqm * 12
         extracted["annual_operating_costs"] = round(max(estimated_annual_rent * 0.15, 1200), 2)
     if purchase_price > 0 and not extracted.get("down_payment"):
@@ -244,11 +244,12 @@ def flatten_json_ld(value: Any) -> list[dict[str, Any]]:
 def extract_embedded_listing_objects(html: str) -> list[dict[str, Any]]:
     objects = []
     for script in extract_script_json_candidates(html):
-        try:
-            parsed = json.loads(script)
-        except json.JSONDecodeError:
-            continue
-        objects.extend(find_listing_like_objects(parsed))
+        for candidate in extract_json_candidates_from_text(script):
+            try:
+                parsed = json.loads(candidate)
+            except json.JSONDecodeError:
+                continue
+            objects.extend(find_listing_like_objects(parsed))
     return objects
 
 
@@ -270,7 +271,61 @@ def extract_script_json_candidates(html: str) -> list[str]:
         if value.startswith(("{", "[")):
             candidates.append(value)
 
+    for match in re.finditer(r"<script[^>]*>(.*?)</script>", html, re.I | re.S):
+        script = unescape(match.group(1)).strip()
+        if script and any(token in script.lower() for token in ["classified", "price", "mainvalue", "bedroom", "surface"]):
+            candidates.append(script)
+
     return candidates
+
+
+def extract_json_candidates_from_text(text: str) -> list[str]:
+    stripped = text.strip()
+    if stripped.startswith(("{", "[")):
+        return [stripped]
+
+    candidates: list[str] = []
+    normalized = normalize_raw_page_text(text)
+    for keyword in ["classified", "property", "realEstate", "initialState", "mainValue", "transaction"]:
+        for match in re.finditer(re.escape(keyword), normalized, re.I):
+            for opener in ["{", "["]:
+                start = normalized.find(opener, match.end())
+                if start == -1:
+                    continue
+                candidate = read_balanced_json(normalized, start)
+                if candidate:
+                    candidates.append(candidate)
+    return candidates
+
+
+def read_balanced_json(text: str, start: int) -> str | None:
+    opening = text[start]
+    closing = "}" if opening == "{" else "]"
+    depth = 0
+    in_string = False
+    quote = ""
+    escape = False
+    for index in range(start, min(len(text), start + 2_000_000)):
+        char = text[index]
+        if in_string:
+            if escape:
+                escape = False
+            elif char == "\\":
+                escape = True
+            elif char == quote:
+                in_string = False
+            continue
+        if char in {"'", '"'}:
+            in_string = True
+            quote = char
+        elif char == opening:
+            depth += 1
+        elif char == closing:
+            depth -= 1
+            if depth == 0:
+                candidate = text[start : index + 1]
+                return candidate.replace("'", '"') if '"' not in candidate and "'" in candidate else candidate
+    return None
 
 
 def find_listing_like_objects(value: Any) -> list[dict[str, Any]]:
@@ -290,10 +345,14 @@ def find_listing_like_objects(value: Any) -> list[dict[str, Any]]:
 def merge_raw_json_patterns(extracted: dict[str, Any], html: str) -> None:
     # Immoweb changes its client-side framework often. These patterns catch the
     # stable field names when the page exposes data inside escaped JSON strings.
-    raw = unescape(html).replace('\\"', '"')
+    raw = normalize_raw_page_text(html)
     raw_patterns = {
         "price": [
-            r'"(?:mainValue|salePrice|price|transactionPrice)"\s*:\s*(?:\{"value"\s*:\s*)?([0-9]{5,})',
+            r'"price"\s*:\s*\{[^{}]{0,800}"(?:mainValue|value|amount)"\s*:\s*"?([0-9][0-9. ,\u00a0]{4,})"?',
+            r'"(?:mainValue|salePrice|transactionPrice|askingPrice|amount)"\s*:\s*"?([0-9][0-9. ,\u00a0]{4,})"?[^{}]{0,120}"(?:EUR|€)"',
+            r'"(?:mainValue|salePrice|transactionPrice|askingPrice)"\s*:\s*"?([0-9][0-9. ,\u00a0]{4,})"?',
+            r'"(?:formattedPrice|priceFormatted|priceLabel|displayPrice)"\s*:\s*"[^"]*(?:EUR|€)\s*([0-9][0-9. ,\u00a0]{4,})',
+            r'"(?:price|prix|prijs)"\s*:\s*"[^"]*(?:EUR|€)\s*([0-9][0-9. ,\u00a0]{4,})',
         ],
         "bedrooms": [
             r'"(?:bedroomCount|numberOfBedrooms|bedrooms)"\s*:\s*([0-9]+)',
@@ -331,6 +390,25 @@ def merge_raw_json_patterns(extracted: dict[str, Any], html: str) -> None:
             if match:
                 extracted[field] = unescape(match.group(1)).strip()
                 break
+
+
+def normalize_raw_page_text(html: str) -> str:
+    variants = [unescape(html)]
+    variants.append(variants[0].replace('\\"', '"').replace("\\u0022", '"').replace("\\u20ac", "€"))
+
+    for match in re.finditer(r'"((?:\\.|[^"\\]){20,})"', html, re.S):
+        chunk = match.group(1)
+        if not any(token in chunk.lower() for token in ["price", "mainvalue", "bedroom", "surface", "classified"]):
+            continue
+        try:
+            decoded = json.loads(f'"{chunk}"')
+        except json.JSONDecodeError:
+            continue
+        if isinstance(decoded, str):
+            variants.append(unescape(decoded).replace('\\"', '"').replace("\\u0022", '"').replace("\\u20ac", "€"))
+
+    unique = list(dict.fromkeys(variants))
+    return "\n".join(unique)
 
 
 def normalize_key(value: Any) -> str:
