@@ -169,3 +169,20 @@ def test_import_uses_search_fallback_when_direct_listing_is_incomplete(monkeypat
     assert result["bedrooms"] == 2
     assert result["area_sqm"] == 119
     assert result["energy_score"] == "B"
+
+
+def test_import_keeps_url_fields_when_direct_fetch_fails(monkeypatch):
+    listing_url = "https://www.immoweb.be/en/classified/house/for-sale/malderen/1840/21603899"
+
+    def fake_fetch(url):
+        raise RuntimeError("blocked")
+
+    monkeypatch.setattr(immoweb, "fetch_listing_html", fake_fetch)
+
+    result = immoweb.import_immoweb_listing(listing_url)
+
+    assert result["city"] == "Malderen"
+    assert result["postcode"] == "1840"
+    assert result["property_type"] == "house"
+    assert result["listing_id"] == "21603899"
+    assert result["direct_fetch_error"] == "blocked"

@@ -35,8 +35,12 @@ class JsonLdParser(HTMLParser):
 
 
 def import_immoweb_listing(url: str) -> dict[str, Any]:
-    html = fetch_listing_html(url)
-    extracted = extract_immoweb_listing(html, url)
+    try:
+        html = fetch_listing_html(url)
+        extracted = extract_immoweb_listing(html, url)
+    except Exception as exc:
+        extracted = extract_immoweb_listing("", url)
+        extracted["direct_fetch_error"] = str(exc)[:300]
     if needs_search_fallback(extracted):
         try:
             fallback_html = fetch_search_fallback_html(url, extracted)
@@ -94,6 +98,7 @@ PRICE_NUMBER = r"([1-9][0-9]{4,8}|[1-9][0-9]{0,2}(?:[. ,\u00a0][0-9]{3})+)"
 def finalize_extraction(extracted: dict[str, Any]) -> dict[str, Any]:
     if extracted.get("price") and not extracted.get("purchase_price"):
         extracted["purchase_price"] = extracted["price"]
+    add_default_assumptions(extracted)
     extracted_fields = [field for field in EXPECTED_FIELDS if extracted.get(field) not in (None, "", [])]
     missing_fields = [field for field in EXPECTED_FIELDS if field not in extracted_fields]
     extracted["extracted_fields"] = extracted_fields
@@ -101,6 +106,44 @@ def finalize_extraction(extracted: dict[str, Any]) -> dict[str, Any]:
     extracted["extraction_confidence"] = round(len(extracted_fields) / len(EXPECTED_FIELDS), 2)
     extracted["extraction_status"] = "success" if not missing_fields else "partial"
     return {key: value for key, value in extracted.items() if value not in (None, "", [])}
+
+
+def add_default_assumptions(extracted: dict[str, Any]) -> None:
+    purchase_price = as_number(extracted.get("purchase_price") or extracted.get("price")) or 0
+    area_sqm = as_number(extracted.get("area_sqm")) or 0
+    condition = str(extracted.get("condition") or "").strip().lower()
+
+    if purchase_price > 0 and not extracted.get("purchase_costs"):
+        extracted["purchase_costs"] = round(purchase_price * 0.12, 2)
+    if area_sqm > 0 and not extracted.get("renovation_cost"):
+        cost_per_sqm = {
+            "poor": 900,
+            "to renovate": 900,
+            "average": 350,
+            "good": 200,
+            "renovated": 75,
+            "new": 0,
+        }.get(condition, 250)
+        extracted["renovation_cost"] = round(area_sqm * cost_per_sqm, 2)
+    if area_sqm > 0 and not extracted.get("annual_operating_costs"):
+        city = str(extracted.get("city") or "").strip().lower()
+        rent_per_sqm = {
+            "brussels": 18,
+            "antwerp": 16,
+            "ghent": 17,
+            "leuven": 19,
+            "mechelen": 15.5,
+            "bruges": 15,
+            "charleroi": 10.5,
+            "liege": 12,
+        }.get(city, 14)
+        estimated_annual_rent = area_sqm * rent_per_sqm * 12
+        extracted["annual_operating_costs"] = round(max(estimated_annual_rent * 0.15, 1200), 2)
+    if purchase_price > 0 and not extracted.get("down_payment"):
+        extracted["down_payment"] = round(purchase_price * 0.2, 2)
+    extracted.setdefault("interest_rate", 3.5)
+    extracted.setdefault("loan_years", 25)
+    extracted.setdefault("vacancy_rate", 0.05)
 
 
 def needs_search_fallback(extracted: dict[str, Any]) -> bool:

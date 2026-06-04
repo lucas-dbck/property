@@ -334,6 +334,28 @@ def test_quick_analyze_opportunity_inputs():
     assert "roi_score" in body["analysis"]
 
 
+def test_quick_analyze_estimates_missing_cost_assumptions():
+    response = client.post(
+        "/opportunities/analyze",
+        json={
+            "data": {
+                "city": "Antwerp",
+                "area_sqm": 100,
+                "purchase_price": 385000,
+                "energy_score": "C",
+            }
+        },
+    )
+
+    assert response.status_code == 200
+    analysis = response.json()["analysis"]
+    assert analysis["purchase_price"] == 385000
+    assert analysis["renovation_cost"] == 25000
+    assert analysis["purchase_costs"] == 46200
+    assert analysis["annual_operating_costs"] > 0
+    assert analysis["total_investment"] > 385000
+
+
 def test_compare_investment_opportunities():
     register_user()
     token = login_user()

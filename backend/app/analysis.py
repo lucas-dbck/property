@@ -83,7 +83,49 @@ def estimate_monthly_rent(data: dict[str, Any]) -> RentEstimate:
     return RentEstimate(monthly_rent=round(monthly_rent, 2), explanation=explanation)
 
 
+def enrich_default_assumptions(data: dict[str, Any]) -> dict[str, Any]:
+    enriched = dict(data)
+    purchase_price = as_float(enriched, "purchase_price") or as_float(enriched, "price")
+    area_sqm = as_float(enriched, "area_sqm") or as_float(enriched, "living_area") or as_float(enriched, "size_sqm")
+    condition = normalize_text(enriched.get("condition") or enriched.get("renovation_level"))
+
+    if purchase_price > 0 and as_float(enriched, "purchase_costs") == 0 and as_float(enriched, "closing_costs") == 0:
+        # Belgian buyer costs are high; use a conservative default the user can edit.
+        enriched["purchase_costs"] = round(purchase_price * 0.12, 2)
+
+    if area_sqm > 0 and as_float(enriched, "renovation_cost") == 0:
+        cost_per_sqm = {
+            "poor": 900,
+            "to renovate": 900,
+            "average": 350,
+            "good": 200,
+            "renovated": 75,
+            "new": 0,
+        }.get(condition, 250)
+        enriched["renovation_cost"] = round(area_sqm * cost_per_sqm, 2)
+
+    if as_float(enriched, "annual_operating_costs") == 0 and as_float(enriched, "operating_costs") == 0:
+        rent_estimate = estimate_monthly_rent(enriched)
+        annual_rent = rent_estimate.monthly_rent * 12
+        enriched["annual_operating_costs"] = round(max(annual_rent * 0.15, 1200), 2)
+
+    if purchase_price > 0 and as_float(enriched, "down_payment") == 0:
+        enriched["down_payment"] = round(purchase_price * 0.2, 2)
+
+    if as_float(enriched, "interest_rate") == 0:
+        enriched["interest_rate"] = 3.5
+
+    if as_float(enriched, "loan_years") == 0:
+        enriched["loan_years"] = 25
+
+    if "vacancy_rate" not in enriched or enriched.get("vacancy_rate") in (None, ""):
+        enriched["vacancy_rate"] = 0.05
+
+    return enriched
+
+
 def calculate_roi(data: dict[str, Any]) -> dict[str, Any]:
+    data = enrich_default_assumptions(data)
     rent_estimate = estimate_monthly_rent(data)
 
     purchase_price = as_float(data, "purchase_price") or as_float(data, "price")
