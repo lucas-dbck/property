@@ -1,5 +1,6 @@
 import json
 
+from app.importers import immoweb
 from app.importers.immoweb import extract_immoweb_listing
 
 
@@ -104,6 +105,67 @@ def test_extracts_city_from_url_and_plain_euro_price_text():
     assert result["postcode"] == "2570"
     assert result["property_type"] == "apartment"
     assert result["listing_id"] == "21603852"
+    assert result["bedrooms"] == 2
+    assert result["area_sqm"] == 119
+    assert result["energy_score"] == "B"
+
+
+def test_extracts_raw_immoweb_json_fields_when_scripts_are_not_valid_json():
+    html = """
+    <html>
+      <body>
+        <script>
+          self.__next_f.push(["classified", "{\\"mainValue\\":425000,\\"bedroomCount\\":2,\\"netHabitableSurface\\":119,\\"epcScore\\":\\"B\\",\\"locality\\":\\"Duffel\\",\\"postalCode\\":\\"2570\\"}"])
+        </script>
+      </body>
+    </html>
+    """
+
+    result = extract_immoweb_listing(
+        html,
+        "https://www.immoweb.be/en/classified/apartment/for-sale/duffel/2570/21603852",
+    )
+
+    assert result["price"] == 425000
+    assert result["purchase_price"] == 425000
+    assert result["city"] == "Duffel"
+    assert result["postcode"] == "2570"
+    assert result["bedrooms"] == 2
+    assert result["area_sqm"] == 119
+    assert result["energy_score"] == "B"
+
+
+def test_import_uses_search_fallback_when_direct_listing_is_incomplete(monkeypatch):
+    listing_url = "https://www.immoweb.be/en/classified/apartment/for-sale/duffel/2570/21603852"
+    direct_html = "<html><body>Javascript required</body></html>"
+    search_html = """
+    <html>
+      <body>
+        <a href="/en/classified/apartment/for-sale/duffel/2570/21603852">
+          Apartment for sale in Duffel
+          Price € 425,000
+          2 bedrooms
+          119 m²
+          EPC B
+        </a>
+      </body>
+    </html>
+    """
+    fetched_urls = []
+
+    def fake_fetch(url):
+        fetched_urls.append(url)
+        return direct_html if url == listing_url else search_html
+
+    monkeypatch.setattr(immoweb, "fetch_listing_html", fake_fetch)
+
+    result = immoweb.import_immoweb_listing(listing_url)
+
+    assert len(fetched_urls) == 2
+    assert "/en/search/apartment/for-sale/duffel/2570" in fetched_urls[1]
+    assert result["price"] == 425000
+    assert result["purchase_price"] == 425000
+    assert result["city"] == "Duffel"
     assert result["bedrooms"] == 2
     assert result["area_sqm"] == 119
     assert result["energy_score"] == "B"

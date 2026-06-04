@@ -3,7 +3,7 @@ import re
 from html import unescape
 from html.parser import HTMLParser
 from typing import Any
-from urllib.parse import unquote, urlparse
+from urllib.parse import quote, unquote, urlparse
 
 import httpx
 
@@ -36,7 +36,16 @@ class JsonLdParser(HTMLParser):
 
 def import_immoweb_listing(url: str) -> dict[str, Any]:
     html = fetch_listing_html(url)
-    return extract_immoweb_listing(html, url)
+    extracted = extract_immoweb_listing(html, url)
+    if needs_search_fallback(extracted):
+        try:
+            fallback_html = fetch_search_fallback_html(url, extracted)
+            fallback = extract_immoweb_listing(fallback_html, url)
+            fallback["extraction_method"] = "immoweb_search_fallback"
+            merge_missing_fields(extracted, fallback)
+        except Exception as exc:
+            extracted["search_fallback_error"] = str(exc)[:300]
+    return finalize_extraction(extracted)
 
 
 def fetch_listing_html(url: str) -> str:
@@ -72,16 +81,53 @@ def extract_immoweb_listing(html: str, source_url: str) -> dict[str, Any]:
     for item in listing_objects:
         merge_listing_object_fields(extracted, item)
 
+    merge_raw_json_patterns(extracted, html)
     merge_regex_fields(extracted, html)
 
-    expected_fields = ["price", "city", "postcode", "property_type", "bedrooms", "bathrooms", "area_sqm", "energy_score"]
-    extracted_fields = [field for field in expected_fields if extracted.get(field) not in (None, "", [])]
-    missing_fields = [field for field in expected_fields if field not in extracted_fields]
+    return finalize_extraction(extracted)
+
+
+EXPECTED_FIELDS = ["price", "city", "postcode", "property_type", "bedrooms", "bathrooms", "area_sqm", "energy_score"]
+PRICE_NUMBER = r"([1-9][0-9]{4,8}|[1-9][0-9]{0,2}(?:[. ,\u00a0][0-9]{3})+)"
+
+
+def finalize_extraction(extracted: dict[str, Any]) -> dict[str, Any]:
+    if extracted.get("price") and not extracted.get("purchase_price"):
+        extracted["purchase_price"] = extracted["price"]
+    extracted_fields = [field for field in EXPECTED_FIELDS if extracted.get(field) not in (None, "", [])]
+    missing_fields = [field for field in EXPECTED_FIELDS if field not in extracted_fields]
     extracted["extracted_fields"] = extracted_fields
     extracted["missing_fields"] = missing_fields
-    extracted["extraction_confidence"] = round(len(extracted_fields) / len(expected_fields), 2)
+    extracted["extraction_confidence"] = round(len(extracted_fields) / len(EXPECTED_FIELDS), 2)
     extracted["extraction_status"] = "success" if not missing_fields else "partial"
-    return extracted
+    return {key: value for key, value in extracted.items() if value not in (None, "", [])}
+
+
+def needs_search_fallback(extracted: dict[str, Any]) -> bool:
+    return any(extracted.get(field) in (None, "", []) for field in ["price", "bedrooms", "area_sqm"])
+
+
+def merge_missing_fields(target: dict[str, Any], source: dict[str, Any]) -> None:
+    for key, value in source.items():
+        if key in {"source_url", "extracted_fields", "missing_fields", "extraction_confidence", "extraction_status"}:
+            continue
+        if target.get(key) in (None, "", []) and value not in (None, "", []):
+            target[key] = value
+
+
+def fetch_search_fallback_html(source_url: str, extracted: dict[str, Any]) -> str:
+    parts = [unquote(part) for part in urlparse(source_url).path.split("/") if part]
+    language = parts[0] if parts and parts[0] in {"en", "nl", "fr"} else "en"
+    property_type = str(extracted.get("property_type") or "apartment").lower()
+    if property_type == "huis":
+        property_type = "house"
+    city = str(extracted.get("city") or "").lower().replace(" ", "-")
+    postcode = str(extracted.get("postcode") or "")
+    location = f"{quote(city)}/{postcode}" if city and postcode else quote(city or postcode)
+    if not location:
+        raise ValueError("Not enough listing location data for search fallback.")
+    search_url = f"https://www.immoweb.be/{language}/search/{property_type}/for-sale/{location}"
+    return fetch_listing_html(search_url)
 
 
 def merge_url_fields(extracted: dict[str, Any], source_url: str) -> None:
@@ -176,6 +222,11 @@ def extract_script_json_candidates(html: str) -> list[str]:
     for match in re.finditer(r"window\.__INITIAL_STATE__\s*=\s*({.*?})\s*</script>", html, re.I | re.S):
         candidates.append(match.group(1).strip())
 
+    for match in re.finditer(r'<script[^>]+type=["\']application/json["\'][^>]*>(.*?)</script>', html, re.I | re.S):
+        value = unescape(match.group(1)).strip()
+        if value.startswith(("{", "[")):
+            candidates.append(value)
+
     return candidates
 
 
@@ -191,6 +242,52 @@ def find_listing_like_objects(value: Any) -> list[dict[str, Any]]:
         for child in value:
             found.extend(find_listing_like_objects(child))
     return found
+
+
+def merge_raw_json_patterns(extracted: dict[str, Any], html: str) -> None:
+    # Immoweb changes its client-side framework often. These patterns catch the
+    # stable field names when the page exposes data inside escaped JSON strings.
+    raw = unescape(html).replace('\\"', '"')
+    raw_patterns = {
+        "price": [
+            r'"(?:mainValue|salePrice|price|transactionPrice)"\s*:\s*(?:\{"value"\s*:\s*)?([0-9]{5,})',
+        ],
+        "bedrooms": [
+            r'"(?:bedroomCount|numberOfBedrooms|bedrooms)"\s*:\s*([0-9]+)',
+        ],
+        "bathrooms": [
+            r'"(?:bathroomCount|numberOfBathrooms|bathrooms)"\s*:\s*([0-9]+)',
+        ],
+        "area_sqm": [
+            r'"(?:netHabitableSurface|habitableSurface|livingArea|surface)"\s*:\s*(?:\{"value"\s*:\s*)?([0-9]{2,4})',
+        ],
+    }
+    for field, patterns in raw_patterns.items():
+        if extracted.get(field) not in (None, "", []):
+            continue
+        value = first_number_match(raw, patterns)
+        if value not in (None, "", []):
+            extracted[field] = value
+
+    text_patterns = {
+        "city": [
+            r'"(?:locality|city|municipality)"\s*:\s*"([^"]{2,80})"',
+        ],
+        "postcode": [
+            r'"(?:postalCode|postcode|zip)"\s*:\s*"?(1[0-9]{3}|[2-9][0-9]{3})"?',
+        ],
+        "energy_score": [
+            r'"(?:epcScore|energyScore|energyClass|peb)"\s*:\s*"?([A-G]\+?)"?',
+        ],
+    }
+    for field, patterns in text_patterns.items():
+        if extracted.get(field) not in (None, "", []):
+            continue
+        for pattern in patterns:
+            match = re.search(pattern, raw, re.I)
+            if match:
+                extracted[field] = unescape(match.group(1)).strip()
+                break
 
 
 def normalize_key(value: Any) -> str:
@@ -315,17 +412,17 @@ def merge_regex_fields(extracted: dict[str, Any], html: str) -> None:
         extracted["price"] = first_number_match(
             compact,
             [
-                r"(?:Price|Asking price|Sale price|Prijs|Vraagprijs|Prix|Prix demandé)\s*(?:EUR|\u20ac)?\s*([0-9][0-9.\s,]*)",
-                r"(?:EUR|\u20ac)\s*([0-9][0-9.\s,]*)\s*(?:asking|sale|price)",
-                r"\b([1-9][0-9.\s,]{4,})\s*(?:EUR|\u20ac)",
-                r"(?:EUR|\u20ac)\s*([1-9][0-9.\s,]{4,})\b",
+                r"(?:Price|Asking price|Sale price|Prijs|Vraagprijs|Prix|Prix demandé)\s*(?:EUR|\u20ac)?\s*([0-9][0-9. ,\u00a0]*)",
+                r"(?:EUR|\u20ac)\s*([0-9][0-9. ,\u00a0]*)\s*(?:asking|sale|price)",
+                r"\b([1-9][0-9. ,\u00a0]{4,})\s*(?:EUR|\u20ac)",
+                r"(?:EUR|\u20ac)\s*([1-9][0-9. ,\u00a0]{4,})\b",
             ],
         )
     if not extracted.get("bedrooms"):
         extracted["bedrooms"] = first_number_match(
             compact,
             [
-                r"(?:Bedrooms?|Bedroom\(s\)|Slaapkamers?|Chambres?)\s*([0-9]+)",
+                r"(?:Bedrooms?|Bedroom\(s\)|Slaapkamers?|Chambres?)\s*[:\-]?\s*([0-9]+)\b(?!\s*(?:m2|m\u00b2|sqm))",
                 r"([0-9]+)\s*(?:bedrooms?|slaapkamers?|chambres?)\b",
             ],
         )
@@ -333,7 +430,7 @@ def merge_regex_fields(extracted: dict[str, Any], html: str) -> None:
         extracted["bathrooms"] = first_number_match(
             compact,
             [
-                r"(?:Bathrooms?|Bathroom\(s\)|Badkamers?|Salles? de bains?)\s*([0-9]+)",
+                r"(?:Bathrooms?|Bathroom\(s\)|Badkamers?|Salles? de bains?)\s*[:\-]?\s*([0-9]+)\b(?!\s*(?:m2|m\u00b2|sqm))",
                 r"([0-9]+)\s*(?:bathrooms?|badkamers?|salles? de bains?)\b",
             ],
         )
@@ -383,7 +480,15 @@ def first_number_match(text: str, patterns: list[str]) -> float | None:
 def as_number(value: Any) -> float | None:
     if value is None:
         return None
-    cleaned = re.sub(r"[^0-9.,]", "", str(value)).replace(".", "").replace(",", ".")
+    raw = str(value).strip()
+    leading_money = re.match(PRICE_NUMBER, raw)
+    if leading_money:
+        raw = leading_money.group(1)
+    cleaned = re.sub(r"[^0-9.,]", "", raw)
+    if "," in cleaned and "." not in cleaned and len(cleaned.split(",")[-1]) == 3:
+        cleaned = cleaned.replace(",", "")
+    else:
+        cleaned = cleaned.replace(".", "").replace(",", ".")
     try:
         return float(cleaned)
     except ValueError:
