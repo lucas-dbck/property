@@ -7,6 +7,7 @@ import { AlertCircle, CheckCircle2, Save } from "lucide-react"
 import { toast } from "sonner"
 import { api, ApiError } from "@/lib/api/client"
 import type { ImmowebImportResponse, ImportFeedback, Opportunity } from "@/lib/api/types"
+import { decodeExtensionImport } from "@/lib/extension-import"
 import { useRoiInputs } from "@/hooks/use-roi-inputs"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { PageHeader } from "@/components/page-header"
@@ -26,6 +27,7 @@ export function AnalyzeWorkspace() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const editId = searchParams.get("id")
+  const extensionImport = searchParams.get("import")
 
   const { data: template, isLoading: templateLoading } = useSWR("input-template", () => api.getInputTemplate())
   const { data: existing, isLoading: existingLoading } = useSWR(
@@ -41,6 +43,7 @@ export function AnalyzeWorkspace() {
   const [importFeedback, setImportFeedback] = useState<ImportFeedback | undefined>()
   const [saving, setSaving] = useState(false)
   const [initialized, setInitialized] = useState(false)
+  const [extensionImportApplied, setExtensionImportApplied] = useState(false)
 
   useEffect(() => {
     if (initialized || fields.length === 0) return
@@ -54,6 +57,24 @@ export function AnalyzeWorkspace() {
     }
     setInitialized(true)
   }, [initialized, fields.length, editId, existing, existingLoading, resetTo])
+
+  useEffect(() => {
+    if (extensionImportApplied || fields.length === 0 || !extensionImport) return
+    const result = decodeExtensionImport(extensionImport)
+    if (!result) {
+      toast.error("Could not read the Chrome extension import.")
+      setExtensionImportApplied(true)
+      return
+    }
+    applyImport(result.values)
+    setImportFeedback(result.feedback)
+    if (result.meta) {
+      setMeta(result.meta)
+      if (result.meta.title) setTitle(result.meta.title)
+    }
+    toast.success("Imported listing from Chrome extension.")
+    setExtensionImportApplied(true)
+  }, [applyImport, extensionImport, extensionImportApplied, fields.length])
 
   function handleImported(result: ImmowebImportResponse) {
     applyImport(result.values)

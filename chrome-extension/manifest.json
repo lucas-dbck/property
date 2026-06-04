@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "YieldDesk Immoweb Import",
+  "description": "Send the current Immoweb listing to YieldDesk for ROI analysis.",
+  "version": "0.1.0",
+  "action": {
+    "default_title": "Import to YieldDesk",
+    "default_popup": "popup.html"
+  },
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["https://www.immoweb.be/*"]
+}
