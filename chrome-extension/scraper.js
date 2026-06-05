@@ -55,6 +55,11 @@ window.__yieldDeskScrapeImmowebListing = function scrapeImmowebListing() {
   })
 
   if (values.purchase_price) values.price = values.purchase_price
+  const estimatedRent = estimateMonthlyRent(values)
+  if (estimatedRent) {
+    values.monthly_rent = estimatedRent
+    values.estimated_rent = estimatedRent
+  }
 
   const foundLabels = [
     ["purchase_price", "Price"],
@@ -157,12 +162,12 @@ function deepFindPath(value, path) {
 
 function extractPrice(text) {
   const labeled = findNumber(text, [
-    /(?:Price|Asking price|Sale price|Prijs|Vraagprijs|Prix|Prix demandé)\s*(?:€|EUR)?\s*([0-9][0-9. ,\u00a0]{4,})/i,
-    /(?:€|EUR)\s*([0-9][0-9. ,\u00a0]{4,})\s*(?:asking|sale|price|prijs|prix)/i,
+    /(?:Price|Asking price|Sale price|Prijs|Vraagprijs|Prix|Prix demand(?:e|é))\s*(?:€|EUR)?\s*([0-9]{1,3}(?:[.,\u00a0][0-9]{3})+|[0-9]{5,8})(?![0-9.,])/i,
+    /(?:€|EUR)\s*([0-9]{1,3}(?:[.,\u00a0][0-9]{3})+|[0-9]{5,8})(?![0-9.,])\s*(?:asking|sale|price|prijs|prix)/i,
   ])
   if (labeled) return labeled
 
-  const candidates = [...text.matchAll(/(?:€|EUR)\s*([0-9][0-9. ,\u00a0]{4,})/gi)]
+  const candidates = [...text.matchAll(/(?:€|EUR)\s*([0-9]{1,3}(?:[.,\u00a0][0-9]{3})+|[0-9]{5,8})(?![0-9.,])/gi)]
     .map((match) => toNumber(match[1]))
     .filter((value) => value && value >= 50000 && value <= 5000000)
   return candidates[0]
@@ -188,7 +193,8 @@ function findText(text, patterns) {
 function toNumber(value) {
   if (value === undefined || value === null || value === "") return undefined
   const raw = String(value).trim()
-  const cleaned = raw.replace(/[^0-9.,]/g, "")
+  const priceLike = raw.match(/[0-9]{1,3}(?:[.,\u00a0][0-9]{3})+|[0-9]{5,8}/)
+  const cleaned = (priceLike ? priceLike[0] : raw).replace(/[^0-9.,]/g, "")
   if (!cleaned) return undefined
   const decimalComma = cleaned.includes(",") && !cleaned.includes(".") && cleaned.split(",").pop().length !== 3
   const normalized = decimalComma
@@ -196,6 +202,68 @@ function toNumber(value) {
     : cleaned.replace(/[.,](?=\d{3}\b)/g, "")
   const number = Number.parseFloat(normalized)
   return Number.isFinite(number) ? number : undefined
+}
+
+function estimateMonthlyRent(values) {
+  const area = Number(values.area_sqm || 0)
+  const bedrooms = Number(values.bedrooms || 0)
+  const rate = rentRateForLocation(values.city, values.postcode)
+  let rent = area > 0 ? area * rate : bedrooms > 0 ? 650 + bedrooms * 275 : 0
+  const energy = String(values.energy_score || "").trim().toLowerCase()
+  const energyMultipliers = { "a+": 1.06, a: 1.05, b: 1.03, c: 1, d: 0.97, e: 0.94, f: 0.9, g: 0.86 }
+  rent *= energyMultipliers[energy] || 1
+  return rent > 0 ? Math.round(rent) : undefined
+}
+
+function rentRateForLocation(city, postcode) {
+  const cityRates = {
+    brussels: 18,
+    bruxelles: 18,
+    etterbeek: 19,
+    ixelles: 20,
+    elsene: 20,
+    uccle: 19,
+    ukkel: 19,
+    schaerbeek: 17,
+    antwerp: 16,
+    antwerpen: 16,
+    ghent: 17,
+    gent: 17,
+    leuven: 19,
+    mechelen: 15.5,
+    duffel: 14,
+    zemst: 14.5,
+    malderen: 13.5,
+    londerzeel: 13.5,
+    vilvoorde: 15,
+    grimbergen: 15,
+    zaventem: 16,
+    charleroi: 10.5,
+    liege: 12,
+    luik: 12,
+  }
+  const key = normalizeLocation(city)
+  if (cityRates[key]) return cityRates[key]
+  const code = Number.parseInt(String(postcode || ""), 10)
+  if (code >= 1000 && code <= 1299) return 18
+  if (code >= 2000 && code <= 2999) return 15
+  if (code >= 3000 && code <= 3499) return 16.5
+  if (code >= 1500 && code <= 1999) return 15
+  if (code >= 9000 && code <= 9999) return 14.5
+  if (code >= 8000 && code <= 8999) return 14
+  if (code >= 3500 && code <= 3999) return 13
+  if (code >= 4000 && code <= 7999) return 11.5
+  return 14
+}
+
+function normalizeLocation(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
 }
 
 function firstUseful(values) {
