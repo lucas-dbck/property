@@ -13,6 +13,7 @@ export interface RoiInputsState {
   values: InputValues
   status: Record<string, FieldStatus>
   setField: (key: string, value: string | number | boolean) => void
+  setAutoField: (key: string, value: string | number | boolean) => void
   applyImport: (imported: InputValues) => void
   resetTo: (values: InputValues) => void
   importedPending: string[]
@@ -58,6 +59,14 @@ export function useRoiInputs(fields: TemplateField[], initial?: InputValues) {
     setStatus((prev) => ({ ...prev, [key]: "edited" }))
   }, [])
 
+  const setAutoField = useCallback((key: string, value: string | number | boolean) => {
+    setValues((prev) => (prev[key] === value ? prev : { ...prev, [key]: value }))
+    setStatus((prev) => {
+      if (prev[key] === "edited") return prev
+      return prev[key] === "default" ? prev : { ...prev, [key]: "default" }
+    })
+  }, [])
+
   // Imported values are STARTING VALUES ONLY: prefill, but flag every imported
   // field so the UI can prompt the user to review before trusting ROI.
   const applyImport = useCallback((imported: InputValues) => {
@@ -79,5 +88,5 @@ export function useRoiInputs(fields: TemplateField[], initial?: InputValues) {
     [status],
   )
 
-  return { values, status, setField, applyImport, resetTo, importedPending }
+  return { values, status, setField, setAutoField, applyImport, resetTo, importedPending }
 }

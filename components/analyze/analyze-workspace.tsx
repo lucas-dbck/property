@@ -36,7 +36,7 @@ export function AnalyzeWorkspace() {
   )
 
   const fields = template?.fields ?? []
-  const { values, status, setField, applyImport, resetTo, importedPending } = useRoiInputs(fields)
+  const { values, status, setField, setAutoField, applyImport, resetTo, importedPending } = useRoiInputs(fields)
 
   const [title, setTitle] = useState("")
   const [meta, setMeta] = useState<ImmowebImportResponse["meta"]>()
@@ -95,6 +95,15 @@ export function AnalyzeWorkspace() {
     () => api.analyze(debouncedValues),
     { keepPreviousData: true },
   )
+
+  useEffect(() => {
+    if (status.monthly_rent === "edited") return
+    const estimatedRent = analysis?.metrics.find((metric) => metric.key === "estimatedMonthlyRent")?.value
+    if (!estimatedRent || estimatedRent <= 0) return
+    const currentRent = Number(values.monthly_rent || 0)
+    if (Math.round(currentRent) === Math.round(estimatedRent)) return
+    setAutoField("monthly_rent", Math.round(estimatedRent))
+  }, [analysis, setAutoField, status.monthly_rent, values.monthly_rent])
 
   async function handleSave() {
     if (!title.trim()) {
