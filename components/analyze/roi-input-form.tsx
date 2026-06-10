@@ -1,6 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
+import { formatNumber } from "@/lib/format"
 import type { FieldStatus } from "@/hooks/use-roi-inputs"
 import type { InputValues, TemplateField } from "@/lib/api/types"
 import { Input } from "@/components/ui/input"
@@ -72,6 +73,8 @@ function FieldControl({
 }) {
   const imported = status === "imported"
   const isNumeric = field.type === "number" || field.type === "currency" || field.type === "percent"
+  const isMoney = isMoneyField(field)
+  const displayValue = formatInputValue(field, value)
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -120,16 +123,25 @@ function FieldControl({
               {field.unit}
             </span>
           )}
+          {isMoney && !field.unit && (
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-medium text-muted-foreground">
+              €
+            </span>
+          )}
           <Input
             id={field.key}
-            type={isNumeric ? "number" : "text"}
+            type="text"
             inputMode={isNumeric ? "decimal" : undefined}
             step={field.step}
             min={field.min}
             max={field.max}
-            value={value === undefined ? "" : String(value)}
-            onChange={(e) => onChange(isNumeric ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value)}
-            className={cn(field.unit && "pr-9", imported && "border-chart-4/60 ring-1 ring-chart-4/30")}
+            value={displayValue}
+            onChange={(e) => onChange(isNumeric ? parseNumericInput(e.target.value, field) : e.target.value)}
+            className={cn(
+              field.unit && "pr-9",
+              isMoney && !field.unit && "pl-8",
+              imported && "border-chart-4/60 ring-1 ring-chart-4/30",
+            )}
           />
         </div>
       )}
@@ -137,4 +149,32 @@ function FieldControl({
       {field.helpText && <p className="text-xs text-muted-foreground">{field.helpText}</p>}
     </div>
   )
+}
+
+function isMoneyField(field: TemplateField): boolean {
+  const key = field.key.toLowerCase()
+  const label = field.label.toLowerCase()
+  return field.type === "currency" || /price|rent|cost|payment|budget|fee|cash|investment/.test(`${key} ${label}`)
+}
+
+function formatInputValue(field: TemplateField, value: string | number | boolean | undefined): string {
+  if (value === undefined || value === "" || typeof value === "boolean") return value === undefined ? "" : String(value)
+  if (field.type === "percent") return String(value)
+  const number = Number(value)
+  if (!Number.isFinite(number)) return String(value)
+  if (isMoneyField(field)) return formatNumber(Math.round(number))
+  return String(value)
+}
+
+function parseNumericInput(value: string, field: TemplateField): number | "" {
+  if (!value.trim()) return ""
+  const normalized = value
+    .replace(/[€\s\u00a0]/g, "")
+    .replace(/\.(?=\d{3}(\D|$))/g, "")
+    .replace(/,(?=\d{3}(\D|$))/g, "")
+    .replace(",", ".")
+    .replace(/[^0-9.-]/g, "")
+  const number = Number(normalized)
+  if (!Number.isFinite(number)) return ""
+  return isMoneyField(field) ? Math.round(number) : number
 }
