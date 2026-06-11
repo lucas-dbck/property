@@ -1,7 +1,7 @@
 import json
 
 from app.importers import immoweb
-from app.importers.immoweb import extract_immoweb_listing
+from app.importers.immoweb import extract_immoweb_listing, extract_listing_urls_from_search_html
 
 
 def test_extracts_embedded_listing_data_before_page_text_numbers():
@@ -269,3 +269,22 @@ def test_import_keeps_url_fields_when_direct_fetch_fails(monkeypatch):
     assert result["property_type"] == "house"
     assert result["listing_id"] == "21603899"
     assert result["direct_fetch_error"] == "blocked"
+
+
+def test_extracts_listing_urls_from_search_html():
+    html = """
+    <html>
+      <body>
+        <a href="/en/classified/apartment/for-sale/duffel/2570/21603852?searchId=abc">Listing</a>
+        <a href="https://www.immoweb.be/en/classified/house/for-sale/malderen/1840/21603899">Listing</a>
+        <a href="/en/classified/apartment/for-sale/duffel/2570/21603852?searchId=duplicate">Duplicate</a>
+      </body>
+    </html>
+    """
+
+    urls = extract_listing_urls_from_search_html(html, "https://www.immoweb.be/en/search/apartment/for-sale/duffel")
+
+    assert urls == [
+        "https://www.immoweb.be/en/classified/apartment/for-sale/duffel/2570/21603852",
+        "https://www.immoweb.be/en/classified/house/for-sale/malderen/1840/21603899",
+    ]

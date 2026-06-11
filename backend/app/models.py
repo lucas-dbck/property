@@ -47,6 +47,10 @@ class User(Base):
         back_populates="owner",
         cascade="all, delete-orphan",
     )
+    monitored_searches: Mapped[list["MonitoredSearch"]] = relationship(
+        back_populates="owner",
+        cascade="all, delete-orphan",
+    )
     favorites: Mapped[list["Favorite"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     inquiries: Mapped[list["Inquiry"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
@@ -114,6 +118,21 @@ class InvestmentOpportunity(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     owner: Mapped["User"] = relationship(back_populates="investment_opportunities")
+
+
+class MonitoredSearch(Base):
+    __tablename__ = "monitored_searches"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(180), nullable=False)
+    search_url: Mapped[str] = mapped_column(String(1000), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    owner: Mapped["User"] = relationship(back_populates="monitored_searches")
 
 
 class Favorite(Base):

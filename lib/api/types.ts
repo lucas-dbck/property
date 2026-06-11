@@ -109,6 +109,25 @@ export interface Opportunity {
   updatedAt?: string
 }
 
+export interface MonitoredSearch {
+  id: string
+  name: string
+  searchUrl: string
+  isActive: boolean
+  lastCheckedAt?: string | null
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface MonitoredSearchScan {
+  monitoredSearchId: string
+  foundCount: number
+  createdCount: number
+  skippedExistingCount: number
+  opportunityIds: string[]
+  listingUrls: string[]
+}
+
 export interface CompareRow {
   id: string
   title: string

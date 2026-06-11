@@ -1,17 +1,18 @@
+from datetime import datetime
 import json
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..analysis import calculate_roi
 from ..auth import get_current_user
 from ..database import get_db
-from ..importers.immoweb import import_immoweb_listing
+from ..importers.immoweb import find_immoweb_listing_urls, import_immoweb_listing
 from ..importers.listing_text import extract_listing_text_data
-from ..models import ImportSource, InvestmentOpportunity, User
+from ..models import ImportSource, InvestmentOpportunity, MonitoredSearch, User
 from ..schemas import (
     ImmowebImportRequest,
     InvestmentOpportunityCreate,
@@ -35,6 +36,33 @@ class ListingTextImportRequest(BaseModel):
     title: str | None = Field(default=None, min_length=3, max_length=180)
     user_overrides: dict = Field(default_factory=dict)
     notes: str | None = None
+
+
+class MonitoredSearchCreate(BaseModel):
+    search_url: HttpUrl
+    name: str | None = Field(default=None, min_length=3, max_length=180)
+    scan_now: bool = True
+
+
+class MonitoredSearchRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    search_url: str
+    is_active: bool
+    last_checked_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class MonitoredSearchScanRead(BaseModel):
+    monitored_search_id: int
+    found_count: int
+    created_count: int
+    skipped_existing_count: int
+    opportunity_ids: list[int]
+    listing_urls: list[str]
 
 
 def parse_json_object(value: str) -> dict[str, Any]:
@@ -79,6 +107,70 @@ def get_opportunity_or_404(db: Session, opportunity_id: int, owner_id: int) -> I
     return opportunity
 
 
+def create_opportunity_from_immoweb_url(
+    db: Session,
+    owner_id: int,
+    source_url: str,
+    notes: str | None = None,
+) -> InvestmentOpportunity:
+    imported_data = import_immoweb_listing(source_url)
+    opportunity = InvestmentOpportunity(
+        owner_id=owner_id,
+        source=ImportSource.immoweb,
+        source_url=source_url,
+        title=imported_data.get("title") or imported_data.get("address") or "Imported Immoweb opportunity",
+        imported_data=json.dumps(imported_data),
+        user_overrides="{}",
+        extraction_confidence=imported_data.get("extraction_confidence", 0.0),
+        notes=notes,
+    )
+    db.add(opportunity)
+    db.flush()
+    return opportunity
+
+
+def scan_monitored_search(
+    db: Session,
+    search: MonitoredSearch,
+    max_listings: int = 20,
+) -> MonitoredSearchScanRead:
+    listing_urls = find_immoweb_listing_urls(search.search_url, limit=max_listings)
+    created_ids: list[int] = []
+    skipped_existing = 0
+
+    for listing_url in listing_urls:
+        existing = db.scalar(
+            select(InvestmentOpportunity).where(
+                InvestmentOpportunity.owner_id == search.owner_id,
+                InvestmentOpportunity.source_url == listing_url,
+            )
+        )
+        if existing:
+            skipped_existing += 1
+            continue
+
+        opportunity = create_opportunity_from_immoweb_url(
+            db,
+            owner_id=search.owner_id,
+            source_url=listing_url,
+            notes=f"Loaded automatically from monitored search: {search.name}",
+        )
+        created_ids.append(opportunity.id)
+
+    search.last_checked_at = datetime.utcnow()
+    db.add(search)
+    db.commit()
+
+    return MonitoredSearchScanRead(
+        monitored_search_id=search.id,
+        found_count=len(listing_urls),
+        created_count=len(created_ids),
+        skipped_existing_count=skipped_existing,
+        opportunity_ids=created_ids,
+        listing_urls=listing_urls,
+    )
+
+
 @router.get("", response_model=list[InvestmentOpportunityRead])
 def list_opportunities(
     source: ImportSource | None = None,
@@ -92,6 +184,70 @@ def list_opportunities(
         query = query.where(InvestmentOpportunity.source == source)
     query = query.order_by(InvestmentOpportunity.created_at.desc()).limit(limit).offset(offset)
     return [serialize_opportunity(item) for item in db.scalars(query)]
+
+
+@router.get("/monitored-searches", response_model=list[MonitoredSearchRead])
+def list_monitored_searches(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[MonitoredSearchRead]:
+    searches = db.scalars(
+        select(MonitoredSearch)
+        .where(MonitoredSearch.owner_id == current_user.id)
+        .order_by(MonitoredSearch.created_at.desc())
+    )
+    return list(searches)
+
+
+@router.post("/monitored-searches", response_model=MonitoredSearchRead, status_code=status.HTTP_201_CREATED)
+def create_monitored_search(
+    payload: MonitoredSearchCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> MonitoredSearchRead:
+    search_url = str(payload.search_url)
+    existing = db.scalar(
+        select(MonitoredSearch).where(
+            MonitoredSearch.owner_id == current_user.id,
+            MonitoredSearch.search_url == search_url,
+        )
+    )
+    if existing:
+        if payload.scan_now:
+            scan_monitored_search(db, existing)
+            db.refresh(existing)
+        return existing
+
+    search = MonitoredSearch(
+        owner_id=current_user.id,
+        search_url=search_url,
+        name=payload.name or "Immoweb monitored search",
+    )
+    db.add(search)
+    db.commit()
+    db.refresh(search)
+    if payload.scan_now:
+        scan_monitored_search(db, search)
+        db.refresh(search)
+    return search
+
+
+@router.post("/monitored-searches/{search_id}/scan", response_model=MonitoredSearchScanRead)
+def scan_monitored_search_endpoint(
+    search_id: int,
+    max_listings: int = Query(default=20, ge=1, le=50),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> MonitoredSearchScanRead:
+    search = db.scalar(
+        select(MonitoredSearch).where(
+            MonitoredSearch.id == search_id,
+            MonitoredSearch.owner_id == current_user.id,
+        )
+    )
+    if search is None:
+        raise HTTPException(status_code=404, detail="Monitored search not found")
+    return scan_monitored_search(db, search, max_listings=max_listings)
 
 
 @router.post("", response_model=InvestmentOpportunityRead, status_code=status.HTTP_201_CREATED)
@@ -124,8 +280,15 @@ def import_immoweb_opportunity(
 ) -> InvestmentOpportunityRead:
     source_url = str(payload.url)
     try:
-        imported_data = import_immoweb_listing(source_url)
-        extraction_confidence = imported_data.get("extraction_confidence", 0.0)
+        opportunity = create_opportunity_from_immoweb_url(
+            db,
+            owner_id=current_user.id,
+            source_url=source_url,
+            notes=payload.notes,
+        )
+        if payload.title:
+            opportunity.title = payload.title
+        opportunity.user_overrides = json.dumps(payload.user_overrides)
     except Exception as exc:
         imported_data = {
             "source_url": source_url,
@@ -134,19 +297,17 @@ def import_immoweb_opportunity(
             "extracted_fields": [],
             "missing_fields": [],
         }
-        extraction_confidence = 0.0
-
-    opportunity = InvestmentOpportunity(
-        owner_id=current_user.id,
-        source=ImportSource.immoweb,
-        source_url=source_url,
-        title=payload.title or imported_data.get("title") or "Imported Immoweb opportunity",
-        imported_data=json.dumps(imported_data),
-        user_overrides=json.dumps(payload.user_overrides),
-        extraction_confidence=extraction_confidence,
-        notes=payload.notes,
-    )
-    db.add(opportunity)
+        opportunity = InvestmentOpportunity(
+            owner_id=current_user.id,
+            source=ImportSource.immoweb,
+            source_url=source_url,
+            title=payload.title or "Imported Immoweb opportunity",
+            imported_data=json.dumps(imported_data),
+            user_overrides=json.dumps(payload.user_overrides),
+            extraction_confidence=0.0,
+            notes=payload.notes,
+        )
+        db.add(opportunity)
     db.commit()
     db.refresh(opportunity)
     return serialize_opportunity(opportunity)

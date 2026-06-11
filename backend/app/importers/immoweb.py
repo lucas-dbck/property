@@ -4,6 +4,7 @@ from html import unescape
 from html.parser import HTMLParser
 from typing import Any
 from urllib.parse import quote, unquote, urlparse
+from urllib.parse import urljoin, urlunparse
 
 import httpx
 
@@ -52,6 +53,40 @@ def import_immoweb_listing(url: str) -> dict[str, Any]:
         except Exception as exc:
             extracted["search_fallback_error"] = str(exc)[:300]
     return finalize_extraction(extracted)
+
+
+def find_immoweb_listing_urls(search_url: str, limit: int = 20) -> list[str]:
+    html = fetch_listing_html(search_url)
+    return extract_listing_urls_from_search_html(html, search_url, limit)
+
+
+def extract_listing_urls_from_search_html(html: str, base_url: str = "https://www.immoweb.be", limit: int = 20) -> list[str]:
+    links: list[str] = []
+    raw = unescape(html).replace("\\/", "/")
+    patterns = [
+        r'href=["\']([^"\']*/(?:classified|annonce)/[^"\']+)["\']',
+        r'"url"\s*:\s*"([^"]*/(?:classified|annonce)/[^"]+)"',
+        r'(https?://www\.immoweb\.be/[^"\'>\s]+/(?:classified|annonce)/[^"\'>\s]+)',
+        r'(/[^"\'>\s]+/(?:classified|annonce)/[^"\'>\s]+)',
+    ]
+    for pattern in patterns:
+        for match in re.finditer(pattern, raw, re.I):
+            url = normalize_immoweb_url(urljoin(base_url, match.group(1)))
+            if url and url not in links:
+                links.append(url)
+                if len(links) >= limit:
+                    return links
+    return links
+
+
+def normalize_immoweb_url(url: str) -> str | None:
+    parsed = urlparse(url)
+    if "immoweb.be" not in parsed.netloc:
+        return None
+    path = parsed.path.rstrip("/")
+    if "/classified/" not in path and "/annonce/" not in path:
+        return None
+    return urlunparse((parsed.scheme or "https", parsed.netloc, path, "", "", ""))
 
 
 def fetch_listing_html(url: str) -> str:

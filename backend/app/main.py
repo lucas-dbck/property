@@ -27,6 +27,9 @@ app.add_middleware(
 @app.on_event("startup")
 def create_database_tables() -> None:
     Base.metadata.create_all(bind=engine)
+    from .monitoring import start_immoweb_monitor
+
+    start_immoweb_monitor()
 
 
 app.include_router(auth.router)

@@ -247,6 +247,68 @@ def test_create_immoweb_import(monkeypatch):
     assert opportunity["final_data"]["renovation_cost"] == 15000
 
 
+def test_monitored_search_loads_new_immoweb_listings_once(monkeypatch):
+    register_user()
+    token = login_user()
+    listing_urls = [
+        "https://www.immoweb.be/en/classified/apartment/for-sale/duffel/2570/21603852",
+        "https://www.immoweb.be/en/classified/house/for-sale/malderen/1840/21603899",
+    ]
+
+    def fake_find_immoweb_listing_urls(search_url: str, limit: int = 20) -> list[str]:
+        assert search_url == "https://www.immoweb.be/en/search/apartment/for-sale/duffel/2570"
+        return listing_urls[:limit]
+
+    def fake_import_immoweb_listing(url: str) -> dict:
+        city = "Duffel" if "duffel" in url else "Malderen"
+        return {
+            "source_url": url,
+            "extraction_status": "partial",
+            "city": city,
+            "price": 300000,
+            "purchase_price": 300000,
+            "area_sqm": 80,
+            "bedrooms": 2,
+            "monthly_rent": 1200,
+            "extraction_confidence": 0.5,
+            "extracted_fields": ["city", "price", "area_sqm", "bedrooms"],
+            "missing_fields": ["energy_score"],
+        }
+
+    monkeypatch.setattr(opportunities, "find_immoweb_listing_urls", fake_find_immoweb_listing_urls)
+    monkeypatch.setattr(opportunities, "import_immoweb_listing", fake_import_immoweb_listing)
+
+    create_response = client.post(
+        "/opportunities/monitored-searches",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "name": "Duffel apartments",
+            "search_url": "https://www.immoweb.be/en/search/apartment/for-sale/duffel/2570",
+            "scan_now": True,
+        },
+    )
+
+    assert create_response.status_code == 201
+    search = create_response.json()
+    assert search["name"] == "Duffel apartments"
+    assert search["last_checked_at"] is not None
+
+    list_response = client.get("/opportunities", headers={"Authorization": f"Bearer {token}"})
+    assert list_response.status_code == 200
+    assert len(list_response.json()) == 2
+
+    scan_response = client.post(
+        f"/opportunities/monitored-searches/{search['id']}/scan",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert scan_response.status_code == 200
+    scan = scan_response.json()
+    assert scan["found_count"] == 2
+    assert scan["created_count"] == 0
+    assert scan["skipped_existing_count"] == 2
+
+
 def test_analyze_investment_opportunity():
     register_user()
     token = login_user()
