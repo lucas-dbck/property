@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 
 export default function MapPage() {
-  const { data, isLoading } = useSWR("opportunities", () => api.listOpportunities())
+  const { data, error, isLoading } = useSWR("opportunities", () => api.listOpportunities())
 
   return (
     <div>
@@ -28,7 +28,15 @@ export default function MapPage() {
       />
 
       <div className="p-4 sm:p-6 lg:p-8">
-        {isLoading ? <Skeleton className="h-[620px] w-full rounded-md" /> : <OpportunitiesMap opportunities={data ?? []} />}
+        {isLoading ? (
+          <Skeleton className="h-[620px] w-full rounded-md" />
+        ) : error ? (
+          <div className="rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+            The map could not load your listings. Please refresh once the backend is awake.
+          </div>
+        ) : (
+          <OpportunitiesMap opportunities={data ?? []} />
+        )}
       </div>
     </div>
   )

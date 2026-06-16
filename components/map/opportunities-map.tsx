@@ -76,8 +76,12 @@ const POSTCODE_AREAS = [
 ]
 
 export function OpportunitiesMap({ opportunities }: { opportunities: Opportunity[] }) {
-  const points = opportunities.map(toPoint).filter((point): point is Point => Boolean(point))
-  const unmapped = opportunities.filter((opportunity) => !toPoint(opportunity))
+  const mapped = opportunities.map((opportunity) => ({
+    opportunity,
+    point: toPoint(opportunity),
+  }))
+  const points = mapped.flatMap(({ point }) => (point ? [point] : []))
+  const unmapped = mapped.filter(({ point }) => !point).map(({ opportunity }) => opportunity)
 
   if (opportunities.length === 0) {
     return (
@@ -97,9 +101,18 @@ export function OpportunitiesMap({ opportunities }: { opportunities: Opportunity
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
       <div className="relative min-h-[560px] overflow-hidden rounded-md border bg-[#e8f1ee]">
         <BelgiumBackdrop />
-        {points.map((point, index) => (
-          <MapMarker key={point.id} point={point} index={index} total={points.length} />
-        ))}
+        {points.length > 0 ? (
+          points.map((point, index) => (
+            <MapMarker key={point.id} point={point} index={index} total={points.length} />
+          ))
+        ) : (
+          <div className="absolute inset-x-6 top-6 rounded-md border bg-background/90 p-4 shadow-sm">
+            <p className="text-sm font-semibold">No listings have enough location data yet</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              The map needs a city, postcode, or an Immoweb URL that contains the city.
+            </p>
+          </div>
+        )}
       </div>
 
       <aside className="space-y-3">
@@ -139,7 +152,7 @@ function MapMarker({ point, index, total }: { point: Point; index: number; total
         "group absolute z-10 flex -translate-x-1/2 -translate-y-full flex-col items-center",
         strong ? "text-emerald-700" : "text-primary",
       )}
-      style={{ left: `${x + offset}%`, top: `${y + offset}%` }}
+      style={{ left: `${clamp(x + offset, 5, 95)}%`, top: `${clamp(y + offset, 5, 95)}%` }}
       title={`${point.title} - ${formatCurrency(point.price)}`}
     >
       <span className={cn("rounded-md px-2 py-1 text-xs font-semibold shadow-sm", strong ? "bg-emerald-600 text-white" : "bg-primary text-primary-foreground")}>
@@ -213,8 +226,10 @@ function BelgiumBackdrop() {
 
 function toPoint(opportunity: Opportunity): Point | null {
   const values = opportunity.values ?? {}
-  const city = String(values.city || "").trim()
-  const postcode = String(values.postcode || values.postal_code || "").trim()
+  const listingUrl = opportunity.listingUrl || String(values.source_url || "")
+  const locationFromUrl = parseLocationFromImmowebUrl(listingUrl)
+  const city = String(values.city || locationFromUrl.city || "").trim()
+  const postcode = String(values.postcode || values.postal_code || locationFromUrl.postcode || "").trim()
   const coords = coordinatesFor(city, postcode)
   if (!coords) return null
 
@@ -232,8 +247,21 @@ function toPoint(opportunity: Opportunity): Point | null {
     grossYield,
     lat: coords.lat,
     lng: coords.lng,
-    listingUrl: opportunity.listingUrl || String(values.source_url || ""),
+    listingUrl,
   }
+}
+
+function parseLocationFromImmowebUrl(url: string): { city?: string; postcode?: string } {
+  const parts = url
+    .split("/")
+    .map((part) => decodeURIComponent(part).trim())
+    .filter(Boolean)
+
+  const postcode = parts.find((part) => /^\d{4}$/.test(part))
+  const postcodeIndex = postcode ? parts.indexOf(postcode) : -1
+  const city = postcodeIndex > 0 ? parts[postcodeIndex - 1] : undefined
+
+  return { city, postcode }
 }
 
 function coordinatesFor(city: string, postcode: string): { lat: number; lng: number } | null {
@@ -266,7 +294,15 @@ function normalizeLocation(value: string): string {
 }
 
 function toNumber(value: unknown): number {
-  const number = typeof value === "number" ? value : Number.parseFloat(String(value ?? ""))
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0
+
+  const raw = String(value ?? "").trim()
+  const normalized = raw
+    .replace(/[^\d,.\-\s]/g, "")
+    .replace(/[\s]/g, "")
+    .replace(/[.,](?=\d{3}(\D|$))/g, "")
+    .replace(",", ".")
+  const number = Number.parseFloat(normalized)
   return Number.isFinite(number) ? number : 0
 }
 

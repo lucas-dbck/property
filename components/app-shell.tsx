@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { Building2, LayoutDashboard, LineChart, LogOut, Map, Scale } from "lucide-react"
+import { Building2, LayoutDashboard, LineChart, LogOut, MapPinned, Scale } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth/context"
 import { Button } from "@/components/ui/button"
@@ -21,7 +21,7 @@ const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/analyze", label: "Analyze", icon: LineChart },
   { href: "/compare", label: "Compare", icon: Scale },
-  { href: "/map", label: "Map", icon: Map },
+  { href: "/map", label: "Map", icon: MapPinned },
 ]
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
