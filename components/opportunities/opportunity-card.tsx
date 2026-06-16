@@ -13,11 +13,12 @@ const PREFERRED = ["cashOnCash", "netYield", "grossYield", "monthlyCashFlow"]
 
 export function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
   const metrics = opportunity.analysis?.metrics ?? []
-  const highlight = PREFERRED.map((k) => metrics.find((m) => m.key === k))
-    .filter((m): m is NonNullable<typeof m> => Boolean(m))
-    .slice(0, 2)
+  const highlight = PREFERRED.map((key) => metrics.find((metric) => metric.key === key))
+    .filter((metric): metric is NonNullable<typeof metric> => Boolean(metric))
+    .slice(0, 1)
 
-  const price = opportunity.values.purchasePrice
+  const price = Number(opportunity.values.purchase_price || opportunity.values.purchasePrice || 0)
+  const rent = Number(opportunity.values.monthly_rent || opportunity.values.estimated_rent || opportunity.values.monthlyRent || 0)
   const verdict = opportunity.analysis?.verdict
 
   return (
@@ -50,14 +51,16 @@ export function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
         <div className="grid grid-cols-3 gap-3">
           <div className="space-y-0.5">
             <p className="text-xs text-muted-foreground">Price</p>
-            <p className="font-semibold tabular-nums">
-              {typeof price === "number" ? formatCurrency(price) : "—"}
-            </p>
+            <p className="font-semibold tabular-nums">{price > 0 ? formatCurrency(price) : "-"}</p>
           </div>
-          {highlight.map((m) => (
-            <div key={m.key} className="space-y-0.5">
-              <p className="truncate text-xs text-muted-foreground">{m.label}</p>
-              <MetricValue value={m.value} format={m.format} sentiment={m.sentiment} />
+          <div className="space-y-0.5">
+            <p className="text-xs text-muted-foreground">Monthly rent</p>
+            <p className="font-semibold tabular-nums">{rent > 0 ? formatCurrency(rent) : "-"}</p>
+          </div>
+          {highlight.map((metric) => (
+            <div key={metric.key} className="space-y-0.5">
+              <p className="truncate text-xs text-muted-foreground">{metric.label}</p>
+              <MetricValue value={metric.value} format={metric.format} sentiment={metric.sentiment} />
             </div>
           ))}
         </div>

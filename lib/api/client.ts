@@ -9,8 +9,6 @@ import type {
   ImmowebImportResponse,
   InputTemplate,
   InputValues,
-  MonitoredSearch,
-  MonitoredSearchScan,
   Opportunity,
 } from "./types"
 
@@ -42,25 +40,6 @@ type BackendCompare = {
     cash_on_cash_return: number
     total_investment: number
   }>
-}
-
-type BackendMonitoredSearch = {
-  id: number
-  name: string
-  search_url: string
-  is_active: boolean
-  last_checked_at?: string | null
-  created_at?: string
-  updated_at?: string
-}
-
-type BackendMonitoredSearchScan = {
-  monitored_search_id: number
-  found_count: number
-  created_count: number
-  skipped_existing_count: number
-  opportunity_ids: number[]
-  listing_urls: string[]
 }
 
 const importBasics = [
@@ -347,32 +326,11 @@ function backendOpportunityToFrontend(item: BackendOpportunity): Opportunity {
   }
 }
 
-function backendMonitoredSearchToFrontend(item: BackendMonitoredSearch): MonitoredSearch {
-  return {
-    id: String(item.id),
-    name: item.name,
-    searchUrl: item.search_url,
-    isActive: item.is_active,
-    lastCheckedAt: item.last_checked_at,
-    createdAt: item.created_at,
-    updatedAt: item.updated_at,
-  }
-}
-
-function backendMonitoredSearchScanToFrontend(item: BackendMonitoredSearchScan): MonitoredSearchScan {
-  return {
-    monitoredSearchId: String(item.monitored_search_id),
-    foundCount: item.found_count,
-    createdCount: item.created_count,
-    skippedExistingCount: item.skipped_existing_count,
-    opportunityIds: item.opportunity_ids.map(String),
-    listingUrls: item.listing_urls,
-  }
-}
-
 function backendImportToFrontend(item: BackendOpportunity): ImmowebImportResponse {
   const data = item.final_data || item.imported_data || {}
   const values = backendToInputValues({ ...data, source_url: item.source_url })
+  delete values.renovation_cost
+  delete values.annual_operating_costs
   return {
     values,
     feedback: buildImportFeedback(data, values),
@@ -506,48 +464,6 @@ export const api = {
     withFallback(
       async () => (await request<BackendOpportunity[]>("/opportunities")).map(backendOpportunityToFrontend),
       () => demoApi.listOpportunities(),
-    ),
-
-  listMonitoredSearches: () =>
-    withFallback(
-      async () => (await request<BackendMonitoredSearch[]>("/opportunities/monitored-searches", { allowDemoFallback: false }))
-        .map(backendMonitoredSearchToFrontend),
-      () => [] as MonitoredSearch[],
-    ),
-
-  createMonitoredSearch: (input: { searchUrl: string; name?: string; scanNow?: boolean }) =>
-    withFallback(
-      async () => backendMonitoredSearchToFrontend(await request<BackendMonitoredSearch>("/opportunities/monitored-searches", {
-        method: "POST",
-        allowDemoFallback: false,
-        body: {
-          search_url: input.searchUrl,
-          name: input.name,
-          scan_now: input.scanNow ?? true,
-        },
-      })),
-      () => ({
-        id: `demo-search-${Date.now()}`,
-        name: input.name || "Immoweb monitored search",
-        searchUrl: input.searchUrl,
-        isActive: true,
-      }),
-    ),
-
-  scanMonitoredSearch: (id: string) =>
-    withFallback(
-      async () => backendMonitoredSearchScanToFrontend(await request<BackendMonitoredSearchScan>(`/opportunities/monitored-searches/${id}/scan`, {
-        method: "POST",
-        allowDemoFallback: false,
-      })),
-      () => ({
-        monitoredSearchId: id,
-        foundCount: 0,
-        createdCount: 0,
-        skippedExistingCount: 0,
-        opportunityIds: [],
-        listingUrls: [],
-      }),
     ),
 
   createOpportunity: (input: Partial<Opportunity>) =>

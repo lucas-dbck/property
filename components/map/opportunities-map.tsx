@@ -90,7 +90,7 @@ export function OpportunitiesMap({ opportunities }: { opportunities: Opportunity
           <MapPin className="mx-auto mb-3 size-8 text-muted-foreground" />
           <h2 className="text-base font-semibold">No listings to map yet</h2>
           <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-            Import or monitor Immoweb listings first, then this map will show where the opportunities are.
+            Import Immoweb listings first, then this map will show where they are.
           </p>
         </div>
       </div>
@@ -117,7 +117,7 @@ export function OpportunitiesMap({ opportunities }: { opportunities: Opportunity
 
       <aside className="space-y-3">
         <div className="rounded-md border bg-card p-4">
-          <p className="text-sm font-semibold">{points.length} mapped listings</p>
+          <p className="text-sm font-semibold">{points.length} listing{points.length === 1 ? "" : "s"} on map</p>
           <p className="mt-1 text-xs text-muted-foreground">
             Markers use city or postcode location, so they are area-level pins rather than exact building coordinates.
           </p>

@@ -8,7 +8,7 @@ from urllib.parse import urljoin, urlunparse
 
 import httpx
 
-from app.analysis import estimate_monthly_rent, rent_rate_for_location
+from app.analysis import estimate_monthly_rent
 
 
 class JsonLdParser(HTMLParser):
@@ -143,7 +143,7 @@ PRICE_NUMBER = r"([1-9][0-9]{4,8}|[1-9][0-9]{0,2}(?:[. ,\u00a0][0-9]{3})+)"
 def finalize_extraction(extracted: dict[str, Any]) -> dict[str, Any]:
     if extracted.get("price") and not extracted.get("purchase_price"):
         extracted["purchase_price"] = extracted["price"]
-    add_default_assumptions(extracted)
+    add_financing_defaults(extracted)
     add_estimated_rent(extracted)
     extracted_fields = [field for field in EXPECTED_FIELDS if extracted.get(field) not in (None, "", [])]
     missing_fields = [field for field in EXPECTED_FIELDS if field not in extracted_fields]
@@ -154,27 +154,11 @@ def finalize_extraction(extracted: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in extracted.items() if value not in (None, "", [])}
 
 
-def add_default_assumptions(extracted: dict[str, Any]) -> None:
+def add_financing_defaults(extracted: dict[str, Any]) -> None:
     purchase_price = as_number(extracted.get("purchase_price") or extracted.get("price")) or 0
-    area_sqm = as_number(extracted.get("area_sqm")) or 0
-    condition = str(extracted.get("condition") or "").strip().lower()
 
     if purchase_price > 0 and not extracted.get("purchase_costs"):
         extracted["purchase_costs"] = round(purchase_price * 0.12, 2)
-    if area_sqm > 0 and not extracted.get("renovation_cost"):
-        cost_per_sqm = {
-            "poor": 900,
-            "to renovate": 900,
-            "average": 350,
-            "good": 200,
-            "renovated": 75,
-            "new": 0,
-        }.get(condition, 250)
-        extracted["renovation_cost"] = round(area_sqm * cost_per_sqm, 2)
-    if area_sqm > 0 and not extracted.get("annual_operating_costs"):
-        rent_per_sqm, _ = rent_rate_for_location(extracted.get("city"), extracted.get("postcode"))
-        estimated_annual_rent = area_sqm * rent_per_sqm * 12
-        extracted["annual_operating_costs"] = round(max(estimated_annual_rent * 0.15, 1200), 2)
     if purchase_price > 0 and not extracted.get("down_payment"):
         extracted["down_payment"] = round(purchase_price * 0.2, 2)
     extracted.setdefault("interest_rate", 3.5)

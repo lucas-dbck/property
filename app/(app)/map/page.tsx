@@ -15,8 +15,8 @@ export default function MapPage() {
   return (
     <div>
       <PageHeader
-        title="Opportunity map"
-        description="See saved and monitored Immoweb listings by city or postcode."
+        title="Map"
+        description="See saved Immoweb listings by city or postcode."
         action={
           <Button asChild>
             <Link href="/analyze">
