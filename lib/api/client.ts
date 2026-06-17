@@ -308,8 +308,10 @@ function backendAnalysisToFrontend(response: BackendAnalysis): AnalyzeResponse {
       { label: "Annual rent", value: toNumber(a.annual_rent), format: "currency" },
       { label: "Operating costs", value: -toNumber(a.annual_operating_costs), format: "currency" },
       { label: "Net operating income", value: toNumber(a.net_operating_income), format: "currency" },
-      { label: "Monthly debt service", value: -toNumber(a.monthly_debt_service), format: "currency" },
       { label: "Total investment", value: toNumber(a.total_investment), format: "currency" },
+      { label: "Down payment", value: toNumber(a.down_payment), format: "currency" },
+      { label: "Loan amount", value: toNumber(a.loan_amount), format: "currency" },
+      { label: "Monthly loan payment", value: -toNumber(a.monthly_debt_service), format: "currency" },
     ],
   }
 }
@@ -329,6 +331,8 @@ function backendOpportunityToFrontend(item: BackendOpportunity): Opportunity {
 function backendImportToFrontend(item: BackendOpportunity): ImmowebImportResponse {
   const data = item.final_data || item.imported_data || {}
   const values = backendToInputValues({ ...data, source_url: item.source_url })
+  delete values.monthly_rent
+  delete values.estimated_rent
   delete values.renovation_cost
   delete values.annual_operating_costs
   return {

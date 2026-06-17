@@ -482,6 +482,28 @@ def test_rent_estimate_uses_bedrooms_when_area_is_missing():
     assert "estimated" in " ".join(analysis["rent_estimation_explanation"]).lower()
 
 
+def test_analysis_exposes_loan_calculation_parts():
+    response = client.post(
+        "/opportunities/analyze",
+        json={
+            "data": {
+                "city": "Leuven",
+                "area_sqm": 80,
+                "purchase_price": 300000,
+                "down_payment": 60000,
+                "interest_rate": 3.5,
+                "loan_years": 25,
+            }
+        },
+    )
+
+    assert response.status_code == 200
+    analysis = response.json()["analysis"]
+    assert analysis["down_payment"] == 60000
+    assert analysis["loan_amount"] == 240000
+    assert analysis["monthly_debt_service"] > 0
+
+
 def test_compare_investment_opportunities():
     register_user()
     token = login_user()
