@@ -354,7 +354,7 @@ def read_opportunity_input_template() -> OpportunityInputTemplateRead:
             OpportunityInputField(
                 key="purchase_price",
                 label="Purchase price",
-                group="listing",
+                group="purchase",
                 value_type="number",
                 imported=True,
                 required_for_roi=True,
@@ -364,7 +364,7 @@ def read_opportunity_input_template() -> OpportunityInputTemplateRead:
             OpportunityInputField(
                 key="city",
                 label="City",
-                group="listing",
+                group="property",
                 value_type="text",
                 imported=True,
                 description="City used for local rent estimation when rent is missing.",
@@ -409,7 +409,7 @@ def read_opportunity_input_template() -> OpportunityInputTemplateRead:
             OpportunityInputField(
                 key="monthly_rent",
                 label="Expected monthly rent",
-                group="income",
+                group="rent",
                 value_type="number",
                 description="Manual rent estimate. If empty, the backend estimates rent from city, area, and energy score.",
                 example=1350,
@@ -417,7 +417,7 @@ def read_opportunity_input_template() -> OpportunityInputTemplateRead:
             OpportunityInputField(
                 key="renovation_cost",
                 label="Renovation cost",
-                group="costs",
+                group="purchase",
                 value_type="number",
                 required_for_roi=True,
                 description="Expected renovation budget before renting or reselling.",
@@ -427,7 +427,7 @@ def read_opportunity_input_template() -> OpportunityInputTemplateRead:
             OpportunityInputField(
                 key="purchase_costs",
                 label="Purchase costs",
-                group="costs",
+                group="purchase",
                 value_type="number",
                 description="One-time purchase costs such as registration, notary, and deed fees.",
                 example=36000,
@@ -436,7 +436,7 @@ def read_opportunity_input_template() -> OpportunityInputTemplateRead:
             OpportunityInputField(
                 key="annual_operating_costs",
                 label="Annual operating costs",
-                group="costs",
+                group="purchase",
                 value_type="number",
                 description="One yearly bucket for maintenance, tax, insurance, and management costs.",
                 example=3000,

@@ -463,6 +463,25 @@ def test_city_and_postcode_influence_estimated_rent():
     assert leuven_rent > duffel_rent > charleroi_rent
 
 
+def test_rent_estimate_uses_bedrooms_when_area_is_missing():
+    response = client.post(
+        "/opportunities/analyze",
+        json={
+            "data": {
+                "city": "Leuven",
+                "property_type": "apartment",
+                "bedrooms": 2,
+                "purchase_price": 300000,
+            }
+        },
+    )
+
+    assert response.status_code == 200
+    analysis = response.json()["analysis"]
+    assert analysis["estimated_monthly_rent"] > 1000
+    assert "estimated" in " ".join(analysis["rent_estimation_explanation"]).lower()
+
+
 def test_compare_investment_opportunities():
     register_user()
     token = login_user()

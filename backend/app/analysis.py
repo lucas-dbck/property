@@ -142,12 +142,17 @@ def estimate_monthly_rent(data: dict[str, Any]) -> RentEstimate:
     base_rent_per_sqm, location_label = rent_rate_for_location(city, postcode)
     explanation = [f"Base rent for {location_label}: EUR {base_rent_per_sqm:.2f}/m2."]
 
+    if area_sqm <= 0:
+        area_sqm = estimate_area_from_basics(data, bedrooms)
+        if area_sqm > 0:
+            explanation.append(f"Living area missing, estimated {area_sqm:.0f} m2 from bedrooms/property type.")
+
     if area_sqm > 0:
         monthly_rent = area_sqm * base_rent_per_sqm
         explanation.append(f"Area adjustment: {area_sqm:.0f} m2 used.")
     else:
-        monthly_rent = 650 + bedrooms * 275
-        explanation.append("Area missing, estimated from bedroom count.")
+        monthly_rent = 650
+        explanation.append("Area and bedrooms missing, used minimum fallback rent.")
 
     energy_score = normalize_text(data.get("energy_score"))
     energy_multiplier = ENERGY_MULTIPLIERS.get(energy_score, 1.0)
@@ -163,6 +168,22 @@ def estimate_monthly_rent(data: dict[str, Any]) -> RentEstimate:
     monthly_rent *= condition_multiplier
 
     return RentEstimate(monthly_rent=round(monthly_rent, 2), explanation=explanation)
+
+
+def estimate_area_from_basics(data: dict[str, Any], bedrooms: float) -> float:
+    property_type = normalize_text(data.get("property_type"))
+    if bedrooms > 0:
+        area = 42 + bedrooms * 18
+        if "house" in property_type or "villa" in property_type:
+            area += 20
+        return area
+    if "studio" in property_type:
+        return 38
+    if "house" in property_type or "villa" in property_type:
+        return 115
+    if "apartment" in property_type or "flat" in property_type:
+        return 65
+    return 0
 
 
 def enrich_default_assumptions(data: dict[str, Any]) -> dict[str, Any]:

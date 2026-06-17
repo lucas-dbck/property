@@ -22,7 +22,12 @@ function groupFields(fields: TemplateField[]) {
     if (!groups.has(key)) groups.set(key, [])
     groups.get(key)!.push(f)
   }
-  return Array.from(groups.entries())
+  const order = ["listing", "property", "rent", "purchase", "financing", "risk"]
+  return Array.from(groups.entries()).sort(([a], [b]) => {
+    const aIndex = order.indexOf(a)
+    const bIndex = order.indexOf(b)
+    return (aIndex === -1 ? 99 : aIndex) - (bIndex === -1 ? 99 : bIndex)
+  })
 }
 
 export function RoiInputForm({
@@ -41,8 +46,9 @@ export function RoiInputForm({
   return (
     <div className="flex flex-col gap-6">
       {groups.map(([groupName, groupFields]) => (
-        <fieldset key={groupName} className="space-y-4">
-          <legend className="text-sm font-semibold text-muted-foreground">{groupName}</legend>
+        <fieldset key={groupName} className="rounded-md border bg-background p-4">
+          <legend className="px-1 text-sm font-semibold">{groupLabel(groupName)}</legend>
+          <p className="mb-4 mt-1 text-xs text-muted-foreground">{groupHelp(groupName)}</p>
           <div className="grid gap-4 sm:grid-cols-2">
             {groupFields.map((field) => (
               <FieldControl
@@ -149,6 +155,30 @@ function FieldControl({
       {field.helpText && <p className="text-xs text-muted-foreground">{field.helpText}</p>}
     </div>
   )
+}
+
+function groupLabel(group: string): string {
+  const labels: Record<string, string> = {
+    listing: "Listing source",
+    property: "Property details",
+    rent: "Rent estimate",
+    purchase: "Purchase & costs",
+    financing: "Financing",
+    risk: "Risk assumptions",
+  }
+  return labels[group] ?? group
+}
+
+function groupHelp(group: string): string {
+  const descriptions: Record<string, string> = {
+    listing: "Where the property came from.",
+    property: "Facts about the home. These drive rent estimates.",
+    rent: "Use your own rent if you know it, or leave it empty for the app estimate.",
+    purchase: "Price and one-time/yearly cost assumptions. These are editable assumptions, not listing facts.",
+    financing: "Loan assumptions used for cash flow and cash-on-cash return.",
+    risk: "Vacancy and uncertainty assumptions.",
+  }
+  return descriptions[group] ?? "Inputs used in the ROI calculation."
 }
 
 function isMoneyField(field: TemplateField): boolean {
