@@ -437,6 +437,14 @@ export const api = {
       () => ({ token: `demo-token-${Date.now()}`, user: { id: "demo-user", email: input.email } }),
     ),
 
+  me: () =>
+    withFallback(
+      async () => backendUserToAuthUser(await request<BackendUser>("/auth/me", { allowDemoFallback: false })),
+      () => {
+        throw new ApiError("No saved session.", 401)
+      },
+    ),
+
   getInputTemplate: () =>
     withFallback(
       async () => backendTemplateToFrontend(await request<{ fields: Array<Record<string, unknown>> }>("/opportunities/input-template")),

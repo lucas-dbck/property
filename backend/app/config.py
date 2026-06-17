@@ -11,7 +11,7 @@ class Settings:
     environment: str = os.getenv("ENVIRONMENT", "development")
     database_url: str = os.getenv("DATABASE_URL", "sqlite:///./property.db")
     secret_key: str = os.getenv("SECRET_KEY", "change-this-secret-before-production")
-    access_token_expire_minutes: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))
+    access_token_expire_minutes: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "43200"))
     immoweb_monitor_enabled: bool = os.getenv("IMMOWEB_MONITOR_ENABLED", "true").lower() in {"1", "true", "yes"}
     immoweb_monitor_interval_minutes: int = int(os.getenv("IMMOWEB_MONITOR_INTERVAL_MINUTES", "60"))
     immoweb_monitor_max_listings: int = int(os.getenv("IMMOWEB_MONITOR_MAX_LISTINGS", "20"))

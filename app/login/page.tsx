@@ -34,16 +34,11 @@ export default function LoginPage() {
       if (mode === "login") {
         await login(email, password)
         toast.success("Welcome back")
-        router.replace("/dashboard")
       } else {
         await register(email, password, name || undefined)
-        // Registration does not sign the user in. Send them to the sign-in tab
-        // with their email prefilled so they can log in to their own page.
-        toast.success("Account created — please sign in to continue")
-        setMode("login")
-        setPassword("")
-        setName("")
+        toast.success("Account created")
       }
+      router.replace("/dashboard")
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Something went wrong. Please try again."
       toast.error(message)
@@ -54,7 +49,6 @@ export default function LoginPage() {
 
   return (
     <main className="grid min-h-svh lg:grid-cols-2">
-      {/* Brand panel */}
       <div className="relative hidden flex-col justify-between bg-sidebar p-10 text-sidebar-foreground lg:flex">
         <div className="flex items-center gap-2 font-semibold">
           <span className="flex size-8 items-center justify-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground">
@@ -73,11 +67,10 @@ export default function LoginPage() {
           </p>
         </div>
         <p className="text-xs text-sidebar-foreground/50">
-          Imported figures are only a starting point — you stay in control of every number.
+          Imported figures are only a starting point - you stay in control of every number.
         </p>
       </div>
 
-      {/* Form panel */}
       <div className="flex items-center justify-center p-6">
         <Card className="w-full max-w-sm border-border/60">
           <CardHeader>
@@ -133,7 +126,7 @@ export default function LoginPage() {
                     minLength={6}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder="********"
                     autoComplete={mode === "login" ? "current-password" : "new-password"}
                   />
                 </div>
