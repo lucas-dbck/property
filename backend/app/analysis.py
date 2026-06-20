@@ -278,6 +278,8 @@ def calculate_roi(data: dict[str, Any]) -> dict[str, Any]:
     gross_yield = percentage(annual_rent, purchase_price)
     net_yield = percentage(net_operating_income, total_investment)
     cash_on_cash_return = percentage(annual_cash_flow, cash_invested)
+    inflation_rate = normalized_rate(data, "inflation_rate", 0.025)
+    real_cash_on_cash_return = real_return(cash_on_cash_return, inflation_rate)
 
     vacancy_rate = normalized_rate(data, "vacancy_rate", 0)
     roi_score = score_opportunity(net_yield, cash_on_cash_return, monthly_cash_flow, vacancy_rate)
@@ -305,10 +307,13 @@ def calculate_roi(data: dict[str, Any]) -> dict[str, Any]:
         "gross_yield": round(gross_yield, 2),
         "net_yield": round(net_yield, 2),
         "cash_on_cash_return": round(cash_on_cash_return, 2),
+        "inflation_rate": round(inflation_rate * 100, 2),
+        "real_cash_on_cash_return": round(real_cash_on_cash_return, 2),
         "roi_score": roi_score,
         "gross_yield_formula": "annual_rent / purchase_price",
         "net_yield_formula": "net_operating_income / total_investment",
         "cash_on_cash_formula": "annual_net_profit / total_cash_invested",
+        "real_cash_on_cash_formula": "((1 + roi) / (1 + inflation_rate) - 1)",
     }
 
 
@@ -352,6 +357,10 @@ def percentage(numerator: float, denominator: float) -> float:
     if denominator <= 0:
         return 0
     return numerator / denominator * 100
+
+
+def real_return(nominal_percent: float, inflation_rate: float) -> float:
+    return ((1 + nominal_percent / 100) / (1 + inflation_rate) - 1) * 100
 
 
 def score_opportunity(net_yield: float, cash_on_cash_return: float, monthly_cash_flow: float, vacancy_rate: float) -> int:

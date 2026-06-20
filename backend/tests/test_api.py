@@ -567,6 +567,45 @@ def test_analysis_allows_manual_monthly_loan_payment():
     assert analysis["monthly_loan_payment"] == 1800
 
 
+def test_interest_rate_changes_calculated_monthly_loan_payment():
+    base_payload = {
+        "city": "Leuven",
+        "area_sqm": 80,
+        "purchase_price": 300000,
+        "down_payment": 60000,
+        "loan_years": 25,
+    }
+    low_rate = client.post("/opportunities/analyze", json={"data": {**base_payload, "interest_rate": 2}})
+    high_rate = client.post("/opportunities/analyze", json={"data": {**base_payload, "interest_rate": 5}})
+
+    assert low_rate.status_code == 200
+    assert high_rate.status_code == 200
+    assert high_rate.json()["analysis"]["monthly_debt_service"] > low_rate.json()["analysis"]["monthly_debt_service"]
+
+
+def test_inflation_lowers_real_roi():
+    response = client.post(
+        "/opportunities/analyze",
+        json={
+            "data": {
+                "city": "Leuven",
+                "area_sqm": 80,
+                "purchase_price": 300000,
+                "down_payment": 100000,
+                "monthly_rent": 1800,
+                "interest_rate": 3.5,
+                "loan_years": 25,
+                "inflation_rate": 0.025,
+            }
+        },
+    )
+
+    assert response.status_code == 200
+    analysis = response.json()["analysis"]
+    assert analysis["inflation_rate"] == 2.5
+    assert analysis["real_cash_on_cash_return"] < analysis["cash_on_cash_return"]
+
+
 def test_analysis_infers_own_payment_from_manual_monthly_loan_payment():
     response = client.post(
         "/opportunities/analyze",

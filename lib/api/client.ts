@@ -235,6 +235,7 @@ function backendToInputValues(data: Record<string, unknown> = {}): InputValues {
     annual_operating_costs: toNumber(firstValue(data, ["annual_operating_costs", "operating_costs"])),
     operating_cost_rate: rateToPercentInput(firstValue(data, ["operating_cost_rate", "operatingCostRate"]), 15),
     vacancy_rate: rateToPercentInput(firstValue(data, ["vacancy_rate", "vacancyRate"]), 5),
+    inflation_rate: rateToPercentInput(firstValue(data, ["inflation_rate", "inflationRate"]), 2.5),
     down_payment: downPayment !== undefined ? toNumber(downPayment) : 0,
     interest_rate: toNumber(firstValue(data, ["interest_rate", "interestRate"])),
     loan_years: toNumber(firstValue(data, ["loan_years", "loanTermYears"]), 25),
@@ -260,6 +261,7 @@ function inputToBackendData(values: InputValues): Record<string, unknown> {
     annual_operating_costs: firstValue(values, ["annual_operating_costs", "operatingCosts"]),
     operating_cost_rate: percentInputToDecimal(firstValue(values, ["operating_cost_rate", "operatingCostRate"]), 15),
     vacancy_rate: percentInputToDecimal(firstValue(values, ["vacancy_rate", "vacancyRate"]), 5),
+    inflation_rate: percentInputToDecimal(firstValue(values, ["inflation_rate", "inflationRate"]), 2.5),
     down_payment: downPayment !== undefined ? toNumber(downPayment) : undefined,
     interest_rate: firstValue(values, ["interest_rate", "interestRate"]),
     loan_years: firstValue(values, ["loan_years", "loanTermYears"]),
@@ -320,6 +322,7 @@ function backendAnalysisToFrontend(response: BackendAnalysis): AnalyzeResponse {
     },
     metrics: [
       metric("cashOnCash", "ROI", a.cash_on_cash_return, "percent", "Formula: annual net profit / total cash invested x 100. Annual net profit is rent after operating costs and loan payments. Total cash invested is your own payment."),
+      metric("realCashOnCash", "Real ROI", a.real_cash_on_cash_return, "percent", "ROI corrected for inflation: (1 + ROI) / (1 + inflation) - 1."),
       metric("estimatedMonthlyRent", "Estimated rent", a.estimated_monthly_rent, "currency", "The monthly rent used in the ROI calculation. If you leave rent empty, the app estimates it from city, area, bedrooms, energy score, and condition."),
       metric("monthlyLoanPayment", "Monthly loan cost", a.monthly_debt_service, "currency", "Estimated mortgage payment per month based on total project cost, own payment, interest rate, and loan years.", "neutral"),
       metric("monthlyCashFlow", "Monthly cash flow", a.monthly_cash_flow, "currency", "Estimated money left each month after operating costs and monthly loan payment."),

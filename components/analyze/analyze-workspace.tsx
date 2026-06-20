@@ -88,8 +88,8 @@ export function AnalyzeWorkspace() {
   const handleFieldChange = useCallback((key: string, value: string | number | boolean) => {
     setField(key, value)
 
-    if (key === "down_payment") {
-      const monthlyPayment = calculateMonthlyPaymentFromInputs({ ...values, down_payment: value })
+    if (key === "down_payment" || key === "interest_rate" || key === "loan_years") {
+      const monthlyPayment = calculateMonthlyPaymentFromInputs({ ...values, [key]: value })
       if (monthlyPayment > 0) setField("monthly_debt_service", monthlyPayment)
     }
 
