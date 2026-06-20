@@ -159,27 +159,23 @@ export function AnalyzeWorkspace() {
 
       <div className="grid gap-6 p-4 sm:p-6 lg:grid-cols-[1fr_380px] lg:p-8">
         <div className="flex flex-col gap-6">
-          {!editId && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Import from Immoweb</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ImportBar onImported={handleImported} />
-              </CardContent>
-            </Card>
-          )}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Import from Immoweb</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ImportBar onImported={handleImported} />
+            </CardContent>
+          </Card>
 
-          {!editId && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Paste listing text</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <TextImportBox onImported={handleImported} />
-              </CardContent>
-            </Card>
-          )}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Paste listing text</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <TextImportBox onImported={handleImported} />
+            </CardContent>
+          </Card>
 
           {importFeedback && <ImportFeedbackPanel feedback={importFeedback} />}
 
