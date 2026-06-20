@@ -252,7 +252,12 @@ def calculate_roi(data: dict[str, Any]) -> dict[str, Any]:
 
     interest_rate = as_float(data, "interest_rate")
     loan_years = as_float(data, "loan_years", 25)
-    monthly_debt_service = calculate_monthly_payment(loan_amount, interest_rate, loan_years)
+    manual_monthly_debt_service = as_float(data, "monthly_debt_service") or as_float(data, "monthly_loan_payment")
+    monthly_debt_service = manual_monthly_debt_service or calculate_monthly_payment(
+        loan_amount,
+        interest_rate,
+        loan_years,
+    )
     annual_debt_service = monthly_debt_service * 12
 
     annual_cash_flow = net_operating_income - annual_debt_service
@@ -283,6 +288,7 @@ def calculate_roi(data: dict[str, Any]) -> dict[str, Any]:
         "annual_operating_costs": round(annual_operating_costs, 2),
         "net_operating_income": round(net_operating_income, 2),
         "monthly_debt_service": round(monthly_debt_service, 2),
+        "monthly_loan_payment": round(monthly_debt_service, 2),
         "loan_amount": round(loan_amount, 2),
         "down_payment": round(down_payment, 2),
         "interest_rate": round(interest_rate, 2),

@@ -477,6 +477,14 @@ def read_opportunity_input_template() -> OpportunityInputTemplateRead:
                 example=25,
                 default=25,
             ),
+            OpportunityInputField(
+                key="monthly_debt_service",
+                label="Monthly loan payment",
+                group="financing",
+                value_type="number",
+                description="Optional. Leave empty to calculate it from total project cost, own payment, interest rate, and loan years.",
+                example=1450,
+            ),
         ]
     )
 

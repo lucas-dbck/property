@@ -506,6 +506,28 @@ def test_analysis_exposes_loan_calculation_parts():
     assert analysis["monthly_debt_service"] > 0
 
 
+def test_analysis_allows_manual_monthly_loan_payment():
+    response = client.post(
+        "/opportunities/analyze",
+        json={
+            "data": {
+                "city": "Leuven",
+                "area_sqm": 80,
+                "purchase_price": 300000,
+                "down_payment": 60000,
+                "interest_rate": 3.5,
+                "loan_years": 25,
+                "monthly_debt_service": 1800,
+            }
+        },
+    )
+
+    assert response.status_code == 200
+    analysis = response.json()["analysis"]
+    assert analysis["monthly_debt_service"] == 1800
+    assert analysis["monthly_loan_payment"] == 1800
+
+
 def test_compare_investment_opportunities():
     register_user()
     token = login_user()

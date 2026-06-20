@@ -26,6 +26,7 @@ export const DEMO_TEMPLATE: InputTemplate = {
     { key: "downPaymentRate", label: "Own payment", type: "percent", group: "Finance", unit: "%", defaultValue: 20, step: 5 },
     { key: "interestRate", label: "Mortgage rate", type: "percent", group: "Finance", unit: "%", defaultValue: 3.4, step: 0.1 },
     { key: "loanTermYears", label: "Loan term", type: "number", group: "Finance", unit: "yrs", defaultValue: 25, step: 1 },
+    { key: "monthlyLoanPayment", label: "Monthly loan payment", type: "currency", group: "Finance", unit: "€", step: 25, helpText: "Optional. Leave empty to calculate it from the loan assumptions." },
     { key: "annualMaintenance", label: "Annual maintenance", type: "currency", group: "Operating costs", unit: "€", defaultValue: 1200, step: 100 },
     { key: "annualInsurance", label: "Insurance", type: "currency", group: "Operating costs", unit: "€", defaultValue: 350, step: 50 },
     { key: "annualPropertyTax", label: "Property tax (PI)", type: "currency", group: "Operating costs", unit: "€", defaultValue: 900, step: 50 },
@@ -64,7 +65,8 @@ export function demoAnalyze(values: InputValues): AnalyzeResponse {
   const loanAmount = totalInvestment - downPayment
   const rate = num(values.interestRate) / 100 / 12
   const term = num(values.loanTermYears) * 12
-  const monthlyMortgage = term > 0 && rate > 0 ? (loanAmount * rate) / (1 - Math.pow(1 + rate, -term)) : loanAmount / Math.max(term, 1)
+  const calculatedMonthlyMortgage = term > 0 && rate > 0 ? (loanAmount * rate) / (1 - Math.pow(1 + rate, -term)) : loanAmount / Math.max(term, 1)
+  const monthlyMortgage = num(values.monthlyLoanPayment) || calculatedMonthlyMortgage
   const annualDebtService = monthlyMortgage * 12
 
   const annualCashFlow = noi - annualDebtService

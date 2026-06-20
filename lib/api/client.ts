@@ -233,6 +233,7 @@ function backendToInputValues(data: Record<string, unknown> = {}): InputValues {
     down_payment: downPayment !== undefined ? toNumber(downPayment) : 0,
     interest_rate: toNumber(firstValue(data, ["interest_rate", "interestRate"])),
     loan_years: toNumber(firstValue(data, ["loan_years", "loanTermYears"]), 25),
+    monthly_debt_service: toNumber(firstValue(data, ["monthly_debt_service", "monthly_loan_payment", "monthlyLoanPayment"])),
   }
 }
 
@@ -256,6 +257,7 @@ function inputToBackendData(values: InputValues): Record<string, unknown> {
     down_payment: downPayment !== undefined ? toNumber(downPayment) : undefined,
     interest_rate: firstValue(values, ["interest_rate", "interestRate"]),
     loan_years: firstValue(values, ["loan_years", "loanTermYears"]),
+    monthly_debt_service: firstValue(values, ["monthly_debt_service", "monthly_loan_payment", "monthlyLoanPayment"]),
     condition: firstValue(values, ["condition"]),
   }
 }
