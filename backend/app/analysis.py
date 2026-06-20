@@ -210,7 +210,8 @@ def enrich_default_assumptions(data: dict[str, Any]) -> dict[str, Any]:
     if as_float(enriched, "annual_operating_costs") == 0 and as_float(enriched, "operating_costs") == 0:
         rent_estimate = estimate_monthly_rent(enriched)
         annual_rent = rent_estimate.monthly_rent * 12
-        enriched["annual_operating_costs"] = round(max(annual_rent * 0.15, 1200), 2)
+        operating_cost_rate = normalized_rate(enriched, "operating_cost_rate", 0.15)
+        enriched["annual_operating_costs"] = round(max(annual_rent * operating_cost_rate, 1200), 2)
 
     project_cost = (
         purchase_price
@@ -316,15 +317,13 @@ def get_annual_operating_costs(data: dict[str, Any], annual_rent: float, monthly
     if bucket > 0:
         return bucket
 
-    vacancy_rate = as_float(data, "vacancy_rate", 0.05)
-    annual_taxes = as_float(data, "annual_taxes") or as_float(data, "property_tax")
-    annual_insurance = as_float(data, "annual_insurance", 600)
-    monthly_maintenance = as_float(data, "monthly_maintenance", monthly_rent * 0.08)
-    management_fee_rate = as_float(data, "management_fee_rate", 0)
+    operating_cost_rate = normalized_rate(data, "operating_cost_rate", 0.15)
+    return max(annual_rent * operating_cost_rate, 1200)
 
-    vacancy_loss = annual_rent * vacancy_rate
-    management_fees = annual_rent * management_fee_rate
-    return annual_taxes + annual_insurance + monthly_maintenance * 12 + vacancy_loss + management_fees
+
+def normalized_rate(data: dict[str, Any], key: str, default: float) -> float:
+    value = as_float(data, key, default)
+    return value / 100 if value > 1 else value
 
 
 def calculate_monthly_payment(loan_amount: float, annual_interest_rate: float, loan_years: float) -> float:

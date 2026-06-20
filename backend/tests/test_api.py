@@ -418,6 +418,45 @@ def test_quick_analyze_estimates_missing_cost_assumptions():
     assert analysis["total_investment"] > 385000
 
 
+def test_operating_cost_rate_controls_operating_cost_bucket():
+    response = client.post(
+        "/opportunities/analyze",
+        json={
+            "data": {
+                "city": "Antwerp",
+                "area_sqm": 100,
+                "purchase_price": 385000,
+                "monthly_rent": 2000,
+                "operating_cost_rate": 0.2,
+            }
+        },
+    )
+
+    assert response.status_code == 200
+    analysis = response.json()["analysis"]
+    assert analysis["annual_operating_costs"] == 4800
+
+
+def test_manual_operating_cost_bucket_overrides_rate():
+    response = client.post(
+        "/opportunities/analyze",
+        json={
+            "data": {
+                "city": "Antwerp",
+                "area_sqm": 100,
+                "purchase_price": 385000,
+                "monthly_rent": 2000,
+                "annual_operating_costs": 7200,
+                "operating_cost_rate": 0.2,
+            }
+        },
+    )
+
+    assert response.status_code == 200
+    analysis = response.json()["analysis"]
+    assert analysis["annual_operating_costs"] == 7200
+
+
 def test_city_and_postcode_influence_estimated_rent():
     leuven_response = client.post(
         "/opportunities/analyze",

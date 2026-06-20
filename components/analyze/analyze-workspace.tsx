@@ -97,6 +97,16 @@ export function AnalyzeWorkspace() {
       const ownPayment = calculateOwnPaymentFromMonthlyPayment({ ...values, monthly_debt_service: value })
       if (ownPayment >= 0) setField("down_payment", ownPayment)
     }
+
+    if (key === "operating_cost_rate") {
+      const annualOperatingCosts = calculateAnnualOperatingCostsFromRate({ ...values, operating_cost_rate: value })
+      if (annualOperatingCosts > 0) setField("annual_operating_costs", annualOperatingCosts)
+    }
+
+    if (key === "annual_operating_costs") {
+      const operatingCostRate = calculateOperatingCostRateFromBucket({ ...values, annual_operating_costs: value })
+      if (operatingCostRate >= 0) setField("operating_cost_rate", operatingCostRate)
+    }
   }, [setField, values])
 
   const analysisValues = useMemo(() => {
@@ -270,6 +280,29 @@ function calculateOwnPaymentFromMonthlyPayment(values: Record<string, unknown>):
     ? payment * months
     : payment * (1 - (1 + monthlyRate) ** -months) / monthlyRate
   return Math.round(Math.max(total - Math.min(loanAmount, total), 0))
+}
+
+function annualRent(values: Record<string, unknown>): number {
+  return numeric(values.monthly_rent) * 12
+}
+
+function normalizeRate(value: unknown): number {
+  const rate = numeric(value)
+  return rate > 1 ? rate / 100 : rate
+}
+
+function calculateAnnualOperatingCostsFromRate(values: Record<string, unknown>): number {
+  const rent = annualRent(values)
+  const rate = normalizeRate(values.operating_cost_rate)
+  if (rent <= 0 || rate <= 0) return 0
+  return Math.round(Math.max(rent * rate, 1200))
+}
+
+function calculateOperatingCostRateFromBucket(values: Record<string, unknown>): number {
+  const rent = annualRent(values)
+  const bucket = numeric(values.annual_operating_costs)
+  if (rent <= 0 || bucket < 0) return -1
+  return Number((bucket / rent).toFixed(4))
 }
 
 function ImportFeedbackPanel({ feedback }: { feedback: ImportFeedback }) {
