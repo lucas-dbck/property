@@ -195,7 +195,7 @@ function formatInputValue(field: TemplateField, value: string | number | boolean
   return String(value)
 }
 
-function parseNumericInput(value: string, field: TemplateField): number | "" {
+function parseNumericInput(value: string, field: TemplateField): number | string | "" {
   if (!value.trim()) return ""
   const normalized = value
     .replace(/[€\s\u00a0]/g, "")
@@ -203,6 +203,7 @@ function parseNumericInput(value: string, field: TemplateField): number | "" {
     .replace(/,(?=\d{3}(\D|$))/g, "")
     .replace(",", ".")
     .replace(/[^0-9.-]/g, "")
+  if (/^-?\d+\.$/.test(normalized) || normalized === "." || normalized === "-") return value
   const number = Number(normalized)
   if (!Number.isFinite(number)) return ""
   return isMoneyField(field) ? Math.round(number) : number

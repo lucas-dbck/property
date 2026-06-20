@@ -288,7 +288,7 @@ function annualRent(values: Record<string, unknown>): number {
 
 function normalizeRate(value: unknown): number {
   const rate = numeric(value)
-  return rate > 1 ? rate / 100 : rate
+  return rate / 100
 }
 
 function calculateAnnualOperatingCostsFromRate(values: Record<string, unknown>): number {
@@ -302,7 +302,7 @@ function calculateOperatingCostRateFromBucket(values: Record<string, unknown>): 
   const rent = annualRent(values)
   const bucket = numeric(values.annual_operating_costs)
   if (rent <= 0 || bucket < 0) return -1
-  return Number((bucket / rent).toFixed(4))
+  return Number(((bucket / rent) * 100).toFixed(2))
 }
 
 function ImportFeedbackPanel({ feedback }: { feedback: ImportFeedback }) {

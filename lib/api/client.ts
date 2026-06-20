@@ -192,9 +192,13 @@ function toNumber(value: unknown, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback
 }
 
-function rateToDecimal(value: unknown, fallback = 0): number {
+function percentInputToDecimal(value: unknown, fallbackPercent = 0): number {
+  return toNumber(value, fallbackPercent) / 100
+}
+
+function rateToPercentInput(value: unknown, fallback = 0): number {
   const n = toNumber(value, fallback)
-  return n > 1 ? n / 100 : n
+  return n > 0 && n <= 1 ? Number((n * 100).toFixed(2)) : n
 }
 
 function firstValue(source: Record<string, unknown>, keys: string[]) {
@@ -229,8 +233,8 @@ function backendToInputValues(data: Record<string, unknown> = {}): InputValues {
     renovation_cost: toNumber(firstValue(data, ["renovation_cost", "renovationBudget"])),
     purchase_costs: toNumber(firstValue(data, ["purchase_costs", "closing_costs"])),
     annual_operating_costs: toNumber(firstValue(data, ["annual_operating_costs", "operating_costs"])),
-    operating_cost_rate: rateToDecimal(firstValue(data, ["operating_cost_rate", "operatingCostRate"]), 0.15),
-    vacancy_rate: rateToDecimal(firstValue(data, ["vacancy_rate", "vacancyRate"]), 0.05),
+    operating_cost_rate: rateToPercentInput(firstValue(data, ["operating_cost_rate", "operatingCostRate"]), 15),
+    vacancy_rate: rateToPercentInput(firstValue(data, ["vacancy_rate", "vacancyRate"]), 5),
     down_payment: downPayment !== undefined ? toNumber(downPayment) : 0,
     interest_rate: toNumber(firstValue(data, ["interest_rate", "interestRate"])),
     loan_years: toNumber(firstValue(data, ["loan_years", "loanTermYears"]), 25),
@@ -254,8 +258,8 @@ function inputToBackendData(values: InputValues): Record<string, unknown> {
     renovation_cost: firstValue(values, ["renovation_cost", "renovationBudget"]),
     purchase_costs: firstValue(values, ["purchase_costs", "closing_costs"]),
     annual_operating_costs: firstValue(values, ["annual_operating_costs", "operatingCosts"]),
-    operating_cost_rate: rateToDecimal(firstValue(values, ["operating_cost_rate", "operatingCostRate"]), 0.15),
-    vacancy_rate: rateToDecimal(firstValue(values, ["vacancy_rate", "vacancyRate"]), 0.05),
+    operating_cost_rate: percentInputToDecimal(firstValue(values, ["operating_cost_rate", "operatingCostRate"]), 15),
+    vacancy_rate: percentInputToDecimal(firstValue(values, ["vacancy_rate", "vacancyRate"]), 5),
     down_payment: downPayment !== undefined ? toNumber(downPayment) : undefined,
     interest_rate: firstValue(values, ["interest_rate", "interestRate"]),
     loan_years: firstValue(values, ["loan_years", "loanTermYears"]),

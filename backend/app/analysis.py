@@ -279,7 +279,7 @@ def calculate_roi(data: dict[str, Any]) -> dict[str, Any]:
     net_yield = percentage(net_operating_income, total_investment)
     cash_on_cash_return = percentage(annual_cash_flow, cash_invested)
 
-    vacancy_rate = as_float(data, "vacancy_rate", 0)
+    vacancy_rate = normalized_rate(data, "vacancy_rate", 0)
     roi_score = score_opportunity(net_yield, cash_on_cash_return, monthly_cash_flow, vacancy_rate)
 
     return {

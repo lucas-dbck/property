@@ -448,8 +448,8 @@ def read_opportunity_input_template() -> OpportunityInputTemplateRead:
                 group="purchase",
                 value_type="percent",
                 description="Optional shortcut for the bucket above. 15% means annual operating costs equal 15% of yearly rent.",
-                example=0.15,
-                default=0.15,
+                example=15,
+                default=15,
             ),
             OpportunityInputField(
                 key="vacancy_rate",
@@ -457,8 +457,8 @@ def read_opportunity_input_template() -> OpportunityInputTemplateRead:
                 group="risk",
                 value_type="percent",
                 description="Expected percentage of rent lost to vacancy. Default is 5%.",
-                example=0.05,
-                default=0.05,
+                example=5,
+                default=5,
             ),
             OpportunityInputField(
                 key="down_payment",
