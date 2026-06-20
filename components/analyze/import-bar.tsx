@@ -18,13 +18,16 @@ export function ImportBar({ onImported }: { onImported: (result: ImmowebImportRe
     if (!url.trim()) return
     setLoading(true)
     try {
-      const result = await api.importImmoweb(url.trim())
+      const listingUrl = normalizeListingUrl(url)
+      const result = await api.importImmoweb(listingUrl)
       onImported(result)
       const count = Object.keys(result.values).filter((key) => result.values[key] !== "" && result.values[key] !== 0).length
       if (result.demo) {
         toast.warning(
           `Backend unavailable - prefilled ${count} field${count === 1 ? "" : "s"} with sample data. Edit every value before trusting ROI.`,
         )
+      } else if (result.feedback?.status === "failed") {
+        toast.error(result.feedback.message || "The backend could not read that listing. Try paste listing text below.")
       } else if (count === 0) {
         toast.warning("Import finished, but no listing values were found. Enter the key values manually for now.")
       } else {
@@ -50,7 +53,8 @@ export function ImportBar({ onImported }: { onImported: (result: ImmowebImportRe
       <div className="relative flex-1">
         <Link2 className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-          type="url"
+          type="text"
+          inputMode="url"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="Paste an Immoweb listing URL"
@@ -64,4 +68,10 @@ export function ImportBar({ onImported }: { onImported: (result: ImmowebImportRe
       </Button>
     </form>
   )
+}
+
+function normalizeListingUrl(value: string): string {
+  const trimmed = value.trim()
+  if (/^https?:\/\//i.test(trimmed)) return trimmed
+  return `https://${trimmed}`
 }

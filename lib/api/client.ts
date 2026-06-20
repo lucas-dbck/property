@@ -266,7 +266,9 @@ function buildImportFeedback(data: Record<string, unknown>, values: InputValues)
   const method = String(data.extraction_method ?? "") || undefined
   const aiStatus = String(data.ai_extraction_status ?? "")
   const aiError = String(data.ai_error ?? "")
-  const message = aiStatus === "failed"
+  const message = status === "failed"
+    ? `Import failed: ${formatApiMessage(data.error) || "the backend could not read this listing."}`
+    : aiStatus === "failed"
     ? `AI extraction failed: ${aiError || "check OpenAI API credits or billing."}`
     : aiStatus === "not_configured"
       ? "AI extraction is not active, so the app used the free parser."
