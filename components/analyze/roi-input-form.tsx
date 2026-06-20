@@ -1,7 +1,6 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { formatNumber } from "@/lib/format"
 import type { FieldStatus } from "@/hooks/use-roi-inputs"
 import type { InputValues, TemplateField } from "@/lib/api/types"
 import { Input } from "@/components/ui/input"
@@ -173,7 +172,7 @@ function groupHelp(group: string): string {
   const descriptions: Record<string, string> = {
     listing: "Where the property came from.",
     property: "Facts about the home. These drive rent estimates.",
-    rent: "Use your own rent if you know it, or leave it empty for the app estimate.",
+    rent: "Auto-estimated from the listing and local rent data. Edit it if you know the real market rent.",
     purchase: "Price and one-time/yearly cost assumptions. These are editable assumptions, not listing facts.",
     financing: "Loan assumptions used for cash flow and cash-on-cash return.",
     risk: "Vacancy and uncertainty assumptions.",
@@ -192,7 +191,7 @@ function formatInputValue(field: TemplateField, value: string | number | boolean
   if (field.type === "percent") return String(value)
   const number = Number(value)
   if (!Number.isFinite(number)) return String(value)
-  if (isMoneyField(field)) return formatNumber(Math.round(number))
+  if (isMoneyField(field)) return String(Math.round(number))
   return String(value)
 }
 

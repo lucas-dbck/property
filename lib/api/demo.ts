@@ -21,7 +21,7 @@ export const DEMO_TEMPLATE: InputTemplate = {
     { key: "registrationTaxRate", label: "Registration tax", type: "percent", group: "Acquisition costs", unit: "%", defaultValue: 12.5, step: 0.5, helpText: "Region-dependent (e.g. 12.5% Wallonia/Brussels)." },
     { key: "notaryFees", label: "Notary & deed fees", type: "currency", group: "Acquisition costs", unit: "€", defaultValue: 4500, step: 100 },
     { key: "renovationBudget", label: "Renovation budget", type: "currency", group: "Acquisition costs", unit: "€", defaultValue: 15000, step: 500 },
-    { key: "monthlyRent", label: "Expected monthly rent", type: "currency", group: "Income", unit: "€", defaultValue: 1150, step: 25, required: true },
+    { key: "monthlyRent", label: "Monthly rent", type: "currency", group: "Income", unit: "€", defaultValue: 1150, step: 25, required: true },
     { key: "vacancyRate", label: "Vacancy allowance", type: "percent", group: "Income", unit: "%", defaultValue: 5, step: 1 },
     { key: "downPaymentRate", label: "Down payment", type: "percent", group: "Finance", unit: "%", defaultValue: 20, step: 5 },
     { key: "interestRate", label: "Mortgage rate", type: "percent", group: "Finance", unit: "%", defaultValue: 3.4, step: 0.1 },

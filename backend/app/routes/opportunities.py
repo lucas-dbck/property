@@ -408,10 +408,10 @@ def read_opportunity_input_template() -> OpportunityInputTemplateRead:
             ),
             OpportunityInputField(
                 key="monthly_rent",
-                label="Expected monthly rent",
+                label="Monthly rent",
                 group="rent",
                 value_type="number",
-                description="Manual rent estimate. If empty, the backend estimates rent from city, area, and energy score.",
+                description="Auto-estimated from the listing and local rent assumptions. Edit this if you know the real market rent.",
                 example=1350,
             ),
             OpportunityInputField(
@@ -456,7 +456,7 @@ def read_opportunity_input_template() -> OpportunityInputTemplateRead:
                 label="Down payment",
                 group="financing",
                 value_type="number",
-                description="Cash paid upfront. Used for cash-on-cash return.",
+                description="Your own cash paid upfront. Loan amount = purchase price minus down payment.",
                 example=75000,
             ),
             OpportunityInputField(

@@ -306,7 +306,7 @@ function backendAnalysisToFrontend(response: BackendAnalysis): AnalyzeResponse {
       sentiment: toNumber(a.monthly_cash_flow) >= 0 ? "positive" : "negative",
     },
     metrics: [
-      metric("roiScore", "ROI score", a.roi_score, "number", "A simple 0-100 score based on yield, cash flow, cash-on-cash return, and vacancy risk."),
+      metric("roiScore", "Investment score", a.roi_score, "number", "Internal 0-100 ranking helper, not an official ROI formula. The standard real-estate ROI metrics below are gross yield, net yield, and cash-on-cash return."),
       metric("estimatedMonthlyRent", "Estimated rent", a.estimated_monthly_rent, "currency", "The monthly rent used in the ROI calculation. If you leave rent empty, the app estimates it from city, area, bedrooms, energy score, and condition."),
       metric("monthlyLoanPayment", "Monthly loan cost", a.monthly_debt_service, "currency", "Estimated mortgage payment per month based on purchase price, down payment, interest rate, and loan years.", "neutral"),
       metric("monthlyCashFlow", "Monthly cash flow", a.monthly_cash_flow, "currency", "Estimated money left each month after operating costs and monthly loan payment."),
@@ -398,7 +398,7 @@ function backendTemplateToFrontend(template: { fields: Array<Record<string, unkn
 function backendCompareToFrontend(compare: BackendCompare): CompareResponse {
   return {
     metricColumns: [
-      { key: "roiScore", label: "ROI score", format: "number" },
+      { key: "roiScore", label: "Investment score", format: "number" },
       { key: "monthlyCashFlow", label: "Monthly cash flow", format: "currency" },
       { key: "grossYield", label: "Gross yield", format: "percent" },
       { key: "netYield", label: "Net yield", format: "percent" },
@@ -408,7 +408,7 @@ function backendCompareToFrontend(compare: BackendCompare): CompareResponse {
       id: String(item.opportunity_id),
       title: item.title,
       metrics: {
-        roiScore: metric("roiScore", "ROI score", item.roi_score, "number"),
+        roiScore: metric("roiScore", "Investment score", item.roi_score, "number"),
         monthlyCashFlow: metric("monthlyCashFlow", "Monthly cash flow", item.monthly_cash_flow, "currency"),
         grossYield: metric("grossYield", "Gross yield", item.gross_yield, "percent"),
         netYield: metric("netYield", "Net yield", item.net_yield, "percent"),
