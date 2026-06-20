@@ -277,14 +277,21 @@ function buildImportFeedback(data: Record<string, unknown>, values: InputValues)
   return { found, missing, status, method, message }
 }
 
-function metric(key: string, label: string, value: unknown, format: "currency" | "percent" | "number" | "years", description?: string) {
+function metric(
+  key: string,
+  label: string,
+  value: unknown,
+  format: "currency" | "percent" | "number" | "years",
+  description?: string,
+  sentiment?: "positive" | "negative" | "neutral",
+) {
   const numericValue = toNumber(value)
   return {
     key,
     label,
     value: numericValue,
     format,
-    sentiment: numericValue > 0 ? "positive" as const : numericValue < 0 ? "negative" as const : "neutral" as const,
+    sentiment: sentiment ?? (numericValue > 0 ? "positive" as const : numericValue < 0 ? "negative" as const : "neutral" as const),
     description,
   }
 }
@@ -299,6 +306,7 @@ function backendAnalysisToFrontend(response: BackendAnalysis): AnalyzeResponse {
     metrics: [
       metric("roiScore", "ROI score", a.roi_score, "number"),
       metric("estimatedMonthlyRent", "Estimated rent", a.estimated_monthly_rent, "currency"),
+      metric("monthlyLoanPayment", "Monthly loan cost", a.monthly_debt_service, "currency", undefined, "neutral"),
       metric("monthlyCashFlow", "Monthly cash flow", a.monthly_cash_flow, "currency"),
       metric("grossYield", "Gross yield", a.gross_yield, "percent"),
       metric("netYield", "Net yield", a.net_yield, "percent"),

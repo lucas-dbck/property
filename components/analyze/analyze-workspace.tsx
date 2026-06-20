@@ -36,7 +36,7 @@ export function AnalyzeWorkspace() {
   )
 
   const fields = template?.fields ?? []
-  const { values, status, setField, applyImport, resetTo, importedPending } = useRoiInputs(fields)
+  const { values, status, setField, setAutoField, applyImport, resetTo, importedPending } = useRoiInputs(fields)
 
   const [title, setTitle] = useState("")
   const [meta, setMeta] = useState<ImmowebImportResponse["meta"]>()
@@ -85,7 +85,15 @@ export function AnalyzeWorkspace() {
     }
   }
 
-  const debouncedValues = useDebouncedValue(values, 400)
+  const analysisValues = useMemo(() => {
+    const next = { ...values }
+    if (status.monthly_rent !== "edited") {
+      delete next.monthly_rent
+      delete next.estimated_rent
+    }
+    return next
+  }, [status.monthly_rent, values])
+  const debouncedValues = useDebouncedValue(analysisValues, 400)
   const analyzeKey = useMemo(
     () => (initialized ? ["analyze", JSON.stringify(debouncedValues)] : null),
     [initialized, debouncedValues],
@@ -95,6 +103,15 @@ export function AnalyzeWorkspace() {
     () => api.analyze(debouncedValues),
     { keepPreviousData: true },
   )
+
+  useEffect(() => {
+    if (status.monthly_rent === "edited") return
+    const estimatedRent = analysis?.metrics.find((metric) => metric.key === "estimatedMonthlyRent")?.value
+    if (!estimatedRent || estimatedRent <= 0) return
+    const roundedRent = Math.round(estimatedRent)
+    if (Number(values.monthly_rent || 0) === roundedRent) return
+    setAutoField("monthly_rent", roundedRent)
+  }, [analysis, setAutoField, status.monthly_rent, values.monthly_rent])
 
   async function handleSave() {
     if (!title.trim()) {
