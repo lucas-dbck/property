@@ -4,9 +4,11 @@ import { cn } from "@/lib/utils"
 import { formatMetric } from "@/lib/format"
 import { sentimentColor } from "@/components/metric-value"
 import type { AnalyzeResponse } from "@/lib/api/types"
+import { Info } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 export function RoiResultPanel({
   analysis,
@@ -64,9 +66,25 @@ export function RoiResultPanel({
         {analysis.metrics.map((m) => (
           <Card key={m.key} className="gap-0 py-0">
             <CardContent className="space-y-1 p-4">
-              <p className="truncate text-xs text-muted-foreground" title={m.description}>
-                {m.label}
-              </p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="truncate text-xs text-muted-foreground">{m.label}</p>
+                {m.description && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        aria-label={`Info about ${m.label}`}
+                      >
+                        <Info className="size-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-64">
+                      {m.description}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              </div>
               <p className={cn("text-xl font-semibold tabular-nums", sentimentColor(m.sentiment))}>
                 {formatMetric(m.value, m.format)}
               </p>
