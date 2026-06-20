@@ -9,8 +9,8 @@ const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'YieldDesk — Property Investment ROI',
-  description: 'Import Immoweb listings, refine your assumptions, and compare investment ROI with live analysis.',
+  title: 'YieldDesk — Leveraged Property ROI',
+  description: 'Import Immoweb listings, refine your assumptions, and compare leveraged property ROI with live analysis.',
   generator: 'v0.app',
   icons: {
     icon: [

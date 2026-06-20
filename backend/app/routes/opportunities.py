@@ -499,7 +499,7 @@ def read_opportunity_input_template() -> OpportunityInputTemplateRead:
                 label="Inflation rate",
                 group="risk",
                 value_type="percent",
-                description="Used to show real ROI after inflation. Example: 2.5 means 2.5% inflation.",
+                description="Used to show real leveraged ROI after inflation. Example: 2.5 means 2.5% inflation.",
                 example=2.5,
                 default=2.5,
             ),

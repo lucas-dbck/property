@@ -24,7 +24,7 @@ export function ImportBar({ onImported }: { onImported: (result: ImmowebImportRe
       const count = Object.keys(result.values).filter((key) => result.values[key] !== "" && result.values[key] !== 0).length
       if (result.demo) {
         toast.warning(
-          `Backend unavailable - prefilled ${count} field${count === 1 ? "" : "s"} with sample data. Edit every value before trusting ROI.`,
+          `Backend unavailable - prefilled ${count} field${count === 1 ? "" : "s"} with sample data. Edit every value before trusting leveraged ROI.`,
         )
       } else if (result.feedback?.status === "failed") {
         toast.error(result.feedback.message || "The backend could not read that listing. Try paste listing text below.")
@@ -32,7 +32,7 @@ export function ImportBar({ onImported }: { onImported: (result: ImmowebImportRe
         toast.warning("Import finished, but no listing values were found. Enter the key values manually for now.")
       } else {
         toast.success(
-          `Imported ${count} field${count === 1 ? "" : "s"} as starting values - review before trusting ROI.`,
+          `Imported ${count} field${count === 1 ? "" : "s"} as starting values - review before trusting leveraged ROI.`,
         )
       }
     } catch (err) {

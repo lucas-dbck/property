@@ -288,7 +288,7 @@ function buildImportFeedback(data: Record<string, unknown>, values: InputValues)
       ? "AI extraction is not active, so the app used the free parser."
       : missing.length > 0
         ? "Some basics still need manual entry."
-        : "Review the imported values before trusting ROI."
+        : "Review the imported values before trusting leveraged ROI."
 
   return { found, missing, status, method, message }
 }
@@ -321,13 +321,13 @@ function backendAnalysisToFrontend(response: BackendAnalysis): AnalyzeResponse {
       sentiment: toNumber(a.monthly_cash_flow) >= 0 ? "positive" : "negative",
     },
     metrics: [
-      metric("cashOnCash", "ROI", a.cash_on_cash_return, "percent", "Formula: annual net profit / total cash invested x 100. Annual net profit is rent after operating costs and loan payments. Total cash invested is your own payment."),
-      metric("realCashOnCash", "Real ROI", a.real_cash_on_cash_return, "percent", "ROI corrected for inflation: (1 + ROI) / (1 + inflation) - 1."),
+      metric("cashOnCash", "Leveraged ROI", a.cash_on_cash_return, "percent", "Formula: annual net profit after loan payments / own cash invested x 100. This is the ROI that changes when leverage changes."),
+      metric("realCashOnCash", "Real leveraged ROI", a.real_cash_on_cash_return, "percent", "Leveraged ROI corrected for inflation: (1 + leveraged ROI) / (1 + inflation) - 1."),
       metric("estimatedMonthlyRent", "Estimated rent", a.estimated_monthly_rent, "currency", "The monthly rent used in the ROI calculation. If you leave rent empty, the app estimates it from city, area, bedrooms, energy score, and condition."),
       metric("monthlyLoanPayment", "Monthly loan cost", a.monthly_debt_service, "currency", "Estimated mortgage payment per month based on total project cost, own payment, interest rate, and loan years.", "neutral"),
       metric("monthlyCashFlow", "Monthly cash flow", a.monthly_cash_flow, "currency", "Estimated money left each month after operating costs and monthly loan payment."),
       metric("grossYield", "Gross yield", a.gross_yield, "percent", "Standard formula: annual rent / purchase price. This ignores costs and financing."),
-      metric("netYield", "Net yield", a.net_yield, "percent", "Standard formula: net operating income / total investment. Total investment includes purchase price, purchase costs, and renovation cost."),
+      metric("netYield", "Net yield", a.net_yield, "percent", "Property-level return before financing: net operating income / total project cost."),
       metric("roiScore", "Investment score", a.roi_score, "number", "Internal 0-100 ranking helper, not an official ROI formula."),
     ],
     breakdown: [
@@ -415,7 +415,7 @@ function backendTemplateToFrontend(template: { fields: Array<Record<string, unkn
 function backendCompareToFrontend(compare: BackendCompare): CompareResponse {
   return {
     metricColumns: [
-      { key: "cashOnCash", label: "ROI", format: "percent" },
+      { key: "cashOnCash", label: "Leveraged ROI", format: "percent" },
       { key: "monthlyCashFlow", label: "Monthly cash flow", format: "currency" },
       { key: "grossYield", label: "Gross yield", format: "percent" },
       { key: "netYield", label: "Net yield", format: "percent" },
@@ -429,7 +429,7 @@ function backendCompareToFrontend(compare: BackendCompare): CompareResponse {
         monthlyCashFlow: metric("monthlyCashFlow", "Monthly cash flow", item.monthly_cash_flow, "currency"),
         grossYield: metric("grossYield", "Gross yield", item.gross_yield, "percent"),
         netYield: metric("netYield", "Net yield", item.net_yield, "percent"),
-        cashOnCash: metric("cashOnCash", "ROI", item.cash_on_cash_return, "percent"),
+        cashOnCash: metric("cashOnCash", "Leveraged ROI", item.cash_on_cash_return, "percent"),
       },
     })),
   }

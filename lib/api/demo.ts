@@ -91,7 +91,7 @@ export function demoAnalyze(values: InputValues): AnalyzeResponse {
       { key: "grossYield", label: "Gross yield", value: grossYield, format: "percent", sentiment: "neutral", description: "Annual rent ÷ purchase price." },
       { key: "netYield", label: "Net yield", value: netYield, format: "percent", sentiment: sentimentFor(netYield - 3), description: "NOI ÷ total invested." },
       { key: "capRate", label: "Cap rate", value: capRate, format: "percent", sentiment: "neutral", description: "NOI ÷ property value." },
-      { key: "cashOnCash", label: "ROI", value: cashOnCash, format: "percent", sentiment: sentimentFor(cashOnCash), description: "Formula: annual net profit / total cash invested x 100." },
+      { key: "cashOnCash", label: "Leveraged ROI", value: cashOnCash, format: "percent", sentiment: sentimentFor(cashOnCash), description: "Formula: annual net profit after loan payments / own cash invested x 100." },
       { key: "monthlyCashFlow", label: "Monthly cash flow", value: monthlyCashFlow, format: "currency", sentiment: sentimentFor(monthlyCashFlow), description: "After mortgage & costs." },
       { key: "payback", label: "Payback", value: paybackYears, format: "years", sentiment: paybackYears > 0 && paybackYears < 25 ? "positive" : "negative", description: "Years to recoup cash invested." },
     ],
@@ -242,7 +242,7 @@ export const demoApi = {
     const cols = [
       { key: "grossYield", label: "Gross yield", format: "percent" as const },
       { key: "netYield", label: "Net yield", format: "percent" as const },
-      { key: "cashOnCash", label: "ROI", format: "percent" as const },
+      { key: "cashOnCash", label: "Leveraged ROI", format: "percent" as const },
       { key: "monthlyCashFlow", label: "Monthly cash flow", format: "currency" as const },
       { key: "payback", label: "Payback", format: "years" as const },
     ]

@@ -274,7 +274,7 @@ def calculate_roi(data: dict[str, Any]) -> dict[str, Any]:
     # Standard property investment formulas:
     # gross yield = annual rent / purchase price
     # net yield = net operating income / total investment
-    # ROI = annual net profit / total cash invested
+    # leveraged ROI = annual net profit after loan payments / own cash invested
     gross_yield = percentage(annual_rent, purchase_price)
     net_yield = percentage(net_operating_income, total_investment)
     cash_on_cash_return = percentage(annual_cash_flow, cash_invested)
@@ -312,8 +312,8 @@ def calculate_roi(data: dict[str, Any]) -> dict[str, Any]:
         "roi_score": roi_score,
         "gross_yield_formula": "annual_rent / purchase_price",
         "net_yield_formula": "net_operating_income / total_investment",
-        "cash_on_cash_formula": "annual_net_profit / total_cash_invested",
-        "real_cash_on_cash_formula": "((1 + roi) / (1 + inflation_rate) - 1)",
+        "cash_on_cash_formula": "annual_net_profit_after_loan_payments / own_cash_invested",
+        "real_cash_on_cash_formula": "((1 + leveraged_roi) / (1 + inflation_rate) - 1)",
     }
 
 

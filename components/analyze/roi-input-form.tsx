@@ -90,7 +90,7 @@ function FieldControl({
         {imported && (
           <span
             className="rounded bg-chart-4/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-chart-4"
-            title="Imported from Immoweb — review and edit before trusting ROI"
+            title="Imported from Immoweb — review and edit before trusting leveraged ROI"
           >
             Imported
           </span>

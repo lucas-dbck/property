@@ -44,7 +44,7 @@ export default function ComparePage() {
                 <Scale />
               </EmptyMedia>
               <EmptyTitle>Nothing to compare yet</EmptyTitle>
-              <EmptyDescription>Save at least two opportunities to compare their ROI.</EmptyDescription>
+              <EmptyDescription>Save at least two opportunities to compare their leveraged ROI.</EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
               <Button asChild>

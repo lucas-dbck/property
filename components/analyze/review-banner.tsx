@@ -3,7 +3,7 @@
 import { AlertTriangle } from "lucide-react"
 
 // Reinforces the core rule: imported values are STARTING values only.
-// The user must review/edit important fields before trusting the ROI.
+// The user must review/edit important fields before trusting the leveraged ROI.
 export function ReviewBanner({ pendingCount }: { pendingCount: number }) {
   if (pendingCount === 0) return null
   return (
@@ -12,7 +12,7 @@ export function ReviewBanner({ pendingCount }: { pendingCount: number }) {
       <p className="text-pretty leading-relaxed">
         <span className="font-medium">{pendingCount}</span> imported{" "}
         {pendingCount === 1 ? "value is" : "values are"} unreviewed. Imported figures are starting points only — confirm
-        or adjust each one before relying on this ROI.
+        or adjust each one before relying on this leveraged ROI.
       </p>
     </div>
   )

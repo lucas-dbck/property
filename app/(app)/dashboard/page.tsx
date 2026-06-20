@@ -17,7 +17,7 @@ export default function DashboardPage() {
     <div>
       <PageHeader
         title="Your opportunities"
-        description="Saved properties with their latest ROI analysis."
+        description="Saved properties with their latest leveraged ROI analysis."
         action={
           <>
             <Button asChild variant="outline">
@@ -51,7 +51,7 @@ export default function DashboardPage() {
               </EmptyMedia>
               <EmptyTitle>No opportunities yet</EmptyTitle>
               <EmptyDescription>
-                Import an Immoweb listing, refine the numbers, and save your first ROI analysis.
+                Import an Immoweb listing, refine the numbers, and save your first leveraged ROI analysis.
               </EmptyDescription>
             </EmptyHeader>
             <EmptyContent>

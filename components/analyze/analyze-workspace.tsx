@@ -172,7 +172,7 @@ export function AnalyzeWorkspace() {
     <div>
       <PageHeader
         title={editId ? "Edit opportunity" : "Analyze a property"}
-        description="Import a listing to prefill, then refine every assumption. ROI updates live."
+        description="Import a listing to prefill, then refine every assumption. Leveraged ROI updates live."
         action={
           <Button onClick={handleSave} disabled={saving || loading}>
             {saving ? <Spinner className="size-4" /> : <Save className="size-4" />}
@@ -235,7 +235,7 @@ export function AnalyzeWorkspace() {
 
         <div className="lg:sticky lg:top-6 lg:self-start">
           <div className="space-y-3">
-            <h2 className="text-sm font-semibold text-muted-foreground">Live ROI analysis</h2>
+            <h2 className="text-sm font-semibold text-muted-foreground">Live leveraged ROI analysis</h2>
             <RoiResultPanel analysis={analysis} isLoading={analyzing} isValidating={isValidating} />
           </div>
         </div>
