@@ -230,6 +230,10 @@ export const demoApi = {
     if (idx >= 0) demoStore[idx] = updated
     return updated
   },
+  deleteOpportunity: (id: string): void => {
+    const idx = demoStore.findIndex((o) => o.id === id)
+    if (idx >= 0) demoStore.splice(idx, 1)
+  },
   compare: (): CompareResponse => {
     const cols = [
       { key: "grossYield", label: "Gross yield", format: "percent" as const },

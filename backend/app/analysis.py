@@ -254,6 +254,10 @@ def calculate_roi(data: dict[str, Any]) -> dict[str, Any]:
     monthly_cash_flow = annual_cash_flow / 12
     cash_invested = down_payment + renovation_cost + purchase_costs if down_payment > 0 else total_investment
 
+    # Standard property investment formulas:
+    # gross yield = annual rent / purchase price
+    # net yield = net operating income / total investment
+    # cash-on-cash = annual cash flow after financing / cash invested
     gross_yield = percentage(annual_rent, purchase_price)
     net_yield = percentage(net_operating_income, total_investment)
     cash_on_cash_return = percentage(annual_cash_flow, cash_invested)
@@ -283,6 +287,9 @@ def calculate_roi(data: dict[str, Any]) -> dict[str, Any]:
         "net_yield": round(net_yield, 2),
         "cash_on_cash_return": round(cash_on_cash_return, 2),
         "roi_score": roi_score,
+        "gross_yield_formula": "annual_rent / purchase_price",
+        "net_yield_formula": "net_operating_income / total_investment",
+        "cash_on_cash_formula": "annual_cash_flow / cash_invested",
     }
 
 

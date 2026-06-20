@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/empty"
 
 export default function ComparePage() {
-  const { data, isLoading } = useSWR("compare", () => api.compare())
+  const { data, isLoading, mutate } = useSWR("compare", () => api.compare())
 
   const hasRows = data && data.rows.length > 0
 
@@ -56,7 +56,13 @@ export default function ComparePage() {
             </EmptyContent>
           </Empty>
         ) : (
-          <CompareTable data={data} />
+          <CompareTable
+            data={data}
+            onDelete={async (id) => {
+              await api.deleteOpportunity(id)
+              await mutate()
+            }}
+          />
         )}
       </div>
     </div>

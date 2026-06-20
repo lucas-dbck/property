@@ -308,9 +308,9 @@ function backendAnalysisToFrontend(response: BackendAnalysis): AnalyzeResponse {
       metric("estimatedMonthlyRent", "Estimated rent", a.estimated_monthly_rent, "currency", "The monthly rent used in the ROI calculation. If you leave rent empty, the app estimates it from city, area, bedrooms, energy score, and condition."),
       metric("monthlyLoanPayment", "Monthly loan cost", a.monthly_debt_service, "currency", "Estimated mortgage payment per month based on purchase price, down payment, interest rate, and loan years.", "neutral"),
       metric("monthlyCashFlow", "Monthly cash flow", a.monthly_cash_flow, "currency", "Estimated money left each month after operating costs and monthly loan payment."),
-      metric("grossYield", "Gross yield", a.gross_yield, "percent", "Annual rent divided by purchase price. This ignores costs and financing."),
-      metric("netYield", "Net yield", a.net_yield, "percent", "Net operating income divided by total investment. This includes operating costs and purchase/renovation costs, but not loan payments."),
-      metric("cashOnCash", "Cash-on-cash", a.cash_on_cash_return, "percent", "Annual cash flow divided by cash invested. This focuses on your own cash return after financing."),
+      metric("grossYield", "Gross yield", a.gross_yield, "percent", "Standard formula: annual rent / purchase price. This ignores costs and financing."),
+      metric("netYield", "Net yield", a.net_yield, "percent", "Standard formula: net operating income / total investment. Total investment includes purchase price, purchase costs, and renovation cost."),
+      metric("cashOnCash", "Cash-on-cash return", a.cash_on_cash_return, "percent", "Standard formula: annual cash flow after loan payments / cash invested. Cash invested includes down payment, purchase costs, and renovation cost."),
     ],
     breakdown: [
       { label: "Annual rent", value: toNumber(a.annual_rent), format: "currency" },
@@ -400,7 +400,7 @@ function backendCompareToFrontend(compare: BackendCompare): CompareResponse {
       { key: "monthlyCashFlow", label: "Monthly cash flow", format: "currency" },
       { key: "grossYield", label: "Gross yield", format: "percent" },
       { key: "netYield", label: "Net yield", format: "percent" },
-      { key: "cashOnCash", label: "Cash-on-cash", format: "percent" },
+      { key: "cashOnCash", label: "Cash-on-cash return", format: "percent" },
     ],
     rows: compare.items.map((item) => ({
       id: String(item.opportunity_id),
@@ -410,7 +410,7 @@ function backendCompareToFrontend(compare: BackendCompare): CompareResponse {
         monthlyCashFlow: metric("monthlyCashFlow", "Monthly cash flow", item.monthly_cash_flow, "currency"),
         grossYield: metric("grossYield", "Gross yield", item.gross_yield, "percent"),
         netYield: metric("netYield", "Net yield", item.net_yield, "percent"),
-        cashOnCash: metric("cashOnCash", "Cash-on-cash", item.cash_on_cash_return, "percent"),
+        cashOnCash: metric("cashOnCash", "Cash-on-cash return", item.cash_on_cash_return, "percent"),
       },
     })),
   }
@@ -512,6 +512,14 @@ export const api = {
         },
       })),
       () => demoApi.updateOpportunity(id, patch),
+    ),
+
+  deleteOpportunity: (id: string) =>
+    withFallback(
+      async () => {
+        await request<void>(`/opportunities/${id}`, { method: "DELETE", allowDemoFallback: false })
+      },
+      () => demoApi.deleteOpportunity(id),
     ),
 
   compare: (_ids?: string[]) =>

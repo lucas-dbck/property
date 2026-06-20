@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react"
+import { ArrowDown, ArrowUp, ChevronsUpDown, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatMetric } from "@/lib/format"
 import { sentimentColor } from "@/components/metric-value"
@@ -15,10 +15,22 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
-export function CompareTable({ data }: { data: CompareResponse }) {
+export function CompareTable({ data, onDelete }: { data: CompareResponse; onDelete: (id: string) => Promise<void> }) {
   const [sortKey, setSortKey] = useState<string | null>(data.metricColumns[0]?.key ?? null)
   const [dir, setDir] = useState<"asc" | "desc">("desc")
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   function toggleSort(key: string) {
     if (sortKey === key) {
@@ -73,6 +85,7 @@ export function CompareTable({ data }: { data: CompareResponse }) {
                 </TableHead>
               )
             })}
+            <TableHead className="w-12 text-right">Delete</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -106,6 +119,45 @@ export function CompareTable({ data }: { data: CompareResponse }) {
                   </TableCell>
                 )
               })}
+              <TableCell className="text-right">
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 text-muted-foreground hover:text-destructive"
+                      aria-label={`Delete ${row.title}`}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete listing?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This removes "{row.title}" from your saved listings and from Compare.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        disabled={deletingId === row.id}
+                        onClick={async () => {
+                          setDeletingId(row.id)
+                          try {
+                            await onDelete(row.id)
+                          } finally {
+                            setDeletingId(null)
+                          }
+                        }}
+                      >
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
