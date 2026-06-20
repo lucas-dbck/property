@@ -23,7 +23,7 @@ export const DEMO_TEMPLATE: InputTemplate = {
     { key: "renovationBudget", label: "Renovation budget", type: "currency", group: "Acquisition costs", unit: "€", defaultValue: 15000, step: 500 },
     { key: "monthlyRent", label: "Monthly rent", type: "currency", group: "Income", unit: "€", defaultValue: 1150, step: 25, required: true },
     { key: "vacancyRate", label: "Vacancy allowance", type: "percent", group: "Income", unit: "%", defaultValue: 5, step: 1 },
-    { key: "downPaymentRate", label: "Down payment", type: "percent", group: "Finance", unit: "%", defaultValue: 20, step: 5 },
+    { key: "downPaymentRate", label: "Own payment", type: "percent", group: "Finance", unit: "%", defaultValue: 20, step: 5 },
     { key: "interestRate", label: "Mortgage rate", type: "percent", group: "Finance", unit: "%", defaultValue: 3.4, step: 0.1 },
     { key: "loanTermYears", label: "Loan term", type: "number", group: "Finance", unit: "yrs", defaultValue: 25, step: 1 },
     { key: "annualMaintenance", label: "Annual maintenance", type: "currency", group: "Operating costs", unit: "€", defaultValue: 1200, step: 100 },
@@ -60,8 +60,8 @@ export function demoAnalyze(values: InputValues): AnalyzeResponse {
   const noi = effectiveAnnualRent - operatingCosts
 
   const downRate = num(values.downPaymentRate) / 100
-  const downPayment = price * downRate
-  const loanAmount = price - downPayment
+  const downPayment = totalInvestment * downRate
+  const loanAmount = totalInvestment - downPayment
   const rate = num(values.interestRate) / 100 / 12
   const term = num(values.loanTermYears) * 12
   const monthlyMortgage = term > 0 && rate > 0 ? (loanAmount * rate) / (1 - Math.pow(1 + rate, -term)) : loanAmount / Math.max(term, 1)
@@ -69,7 +69,7 @@ export function demoAnalyze(values: InputValues): AnalyzeResponse {
 
   const annualCashFlow = noi - annualDebtService
   const monthlyCashFlow = annualCashFlow / 12
-  const cashInvested = downPayment + renovation + notary + regTax
+  const cashInvested = downPayment
 
   const grossYield = price > 0 ? (grossAnnualRent / price) * 100 : 0
   const netYield = totalInvestment > 0 ? (noi / totalInvestment) * 100 : 0
@@ -99,7 +99,9 @@ export function demoAnalyze(values: InputValues): AnalyzeResponse {
       { label: "Net operating income", value: noi, format: "currency" },
       { label: "Annual debt service", value: -annualDebtService, format: "currency" },
       { label: "Annual cash flow", value: annualCashFlow, format: "currency" },
+      { label: "Total project cost", value: totalInvestment, format: "currency" },
       { label: "Total cash invested", value: cashInvested, format: "currency" },
+      { label: "Loan amount", value: loanAmount, format: "currency" },
     ],
   }
 }

@@ -453,10 +453,10 @@ def read_opportunity_input_template() -> OpportunityInputTemplateRead:
             ),
             OpportunityInputField(
                 key="down_payment",
-                label="Down payment",
+                label="Own payment",
                 group="financing",
                 value_type="number",
-                description="Your own cash paid upfront. Loan amount = purchase price minus down payment.",
+                description="Your own cash contribution. Loan amount = total project cost minus own payment.",
                 example=75000,
             ),
             OpportunityInputField(

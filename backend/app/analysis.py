@@ -212,8 +212,13 @@ def enrich_default_assumptions(data: dict[str, Any]) -> dict[str, Any]:
         annual_rent = rent_estimate.monthly_rent * 12
         enriched["annual_operating_costs"] = round(max(annual_rent * 0.15, 1200), 2)
 
-    if purchase_price > 0 and as_float(enriched, "down_payment") == 0:
-        enriched["down_payment"] = round(purchase_price * 0.2, 2)
+    project_cost = (
+        purchase_price
+        + as_float(enriched, "renovation_cost")
+        + (as_float(enriched, "purchase_costs") or as_float(enriched, "closing_costs"))
+    )
+    if project_cost > 0 and as_float(enriched, "down_payment") == 0:
+        enriched["down_payment"] = round(project_cost * 0.2, 2)
 
     if as_float(enriched, "interest_rate") == 0:
         enriched["interest_rate"] = 3.5
@@ -242,8 +247,8 @@ def calculate_roi(data: dict[str, Any]) -> dict[str, Any]:
 
     down_payment = as_float(data, "down_payment")
     loan_amount = as_float(data, "loan_amount")
-    if loan_amount == 0 and purchase_price > 0 and down_payment > 0:
-        loan_amount = max(purchase_price - down_payment, 0)
+    if loan_amount == 0 and total_investment > 0 and down_payment > 0:
+        loan_amount = max(total_investment - down_payment, 0)
 
     interest_rate = as_float(data, "interest_rate")
     loan_years = as_float(data, "loan_years", 25)
@@ -252,7 +257,7 @@ def calculate_roi(data: dict[str, Any]) -> dict[str, Any]:
 
     annual_cash_flow = net_operating_income - annual_debt_service
     monthly_cash_flow = annual_cash_flow / 12
-    cash_invested = down_payment + renovation_cost + purchase_costs if down_payment > 0 else total_investment
+    cash_invested = down_payment if down_payment > 0 else total_investment
 
     # Standard property investment formulas:
     # gross yield = annual rent / purchase price
@@ -274,6 +279,7 @@ def calculate_roi(data: dict[str, Any]) -> dict[str, Any]:
         "purchase_costs": round(purchase_costs, 2),
         "closing_costs": round(purchase_costs, 2),
         "total_investment": round(total_investment, 2),
+        "total_cash_invested": round(cash_invested, 2),
         "annual_operating_costs": round(annual_operating_costs, 2),
         "net_operating_income": round(net_operating_income, 2),
         "monthly_debt_service": round(monthly_debt_service, 2),

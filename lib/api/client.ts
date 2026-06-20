@@ -42,6 +42,10 @@ type BackendCompare = {
   }>
 }
 
+function analysisNumber(analysis: Record<string, number | string | string[]>, key: string): number {
+  return toNumber(analysis[key])
+}
+
 const importBasics = [
   { key: "purchase_price", backendKeys: ["purchase_price", "price"], label: "Price" },
   { key: "city", backendKeys: ["city", "locality"], label: "City" },
@@ -226,7 +230,7 @@ function backendToInputValues(data: Record<string, unknown> = {}): InputValues {
     purchase_costs: toNumber(firstValue(data, ["purchase_costs", "closing_costs"])),
     annual_operating_costs: toNumber(firstValue(data, ["annual_operating_costs", "operating_costs"])),
     vacancy_rate: rateToDecimal(firstValue(data, ["vacancy_rate", "vacancyRate"]), 0.05),
-    down_payment: downPayment !== undefined ? toNumber(downPayment) : price * 0.2,
+    down_payment: downPayment !== undefined ? toNumber(downPayment) : 0,
     interest_rate: toNumber(firstValue(data, ["interest_rate", "interestRate"])),
     loan_years: toNumber(firstValue(data, ["loan_years", "loanTermYears"]), 25),
   }
@@ -249,7 +253,7 @@ function inputToBackendData(values: InputValues): Record<string, unknown> {
     purchase_costs: firstValue(values, ["purchase_costs", "closing_costs"]),
     annual_operating_costs: firstValue(values, ["annual_operating_costs", "operatingCosts"]),
     vacancy_rate: rateToDecimal(firstValue(values, ["vacancy_rate", "vacancyRate"]), 0.05),
-    down_payment: downPayment !== undefined ? toNumber(downPayment) : purchasePrice * 0.2,
+    down_payment: downPayment !== undefined ? toNumber(downPayment) : undefined,
     interest_rate: firstValue(values, ["interest_rate", "interestRate"]),
     loan_years: firstValue(values, ["loan_years", "loanTermYears"]),
     condition: firstValue(values, ["condition"]),
@@ -300,15 +304,16 @@ function metric(
 
 function backendAnalysisToFrontend(response: BackendAnalysis): AnalyzeResponse {
   const a = response.analysis
+  const totalCashInvested = analysisNumber(a, "total_cash_invested") || analysisNumber(a, "down_payment")
   return {
     verdict: {
       label: toNumber(a.monthly_cash_flow) >= 0 ? "Positive cash flow" : "Negative cash flow",
       sentiment: toNumber(a.monthly_cash_flow) >= 0 ? "positive" : "negative",
     },
     metrics: [
-      metric("cashOnCash", "ROI", a.cash_on_cash_return, "percent", "Formula: annual net profit / total cash invested x 100. Annual net profit is rent after operating costs and loan payments. Total cash invested includes down payment, purchase costs, and renovation cost."),
+      metric("cashOnCash", "ROI", a.cash_on_cash_return, "percent", "Formula: annual net profit / total cash invested x 100. Annual net profit is rent after operating costs and loan payments. Total cash invested is your own payment."),
       metric("estimatedMonthlyRent", "Estimated rent", a.estimated_monthly_rent, "currency", "The monthly rent used in the ROI calculation. If you leave rent empty, the app estimates it from city, area, bedrooms, energy score, and condition."),
-      metric("monthlyLoanPayment", "Monthly loan cost", a.monthly_debt_service, "currency", "Estimated mortgage payment per month based on purchase price, down payment, interest rate, and loan years.", "neutral"),
+      metric("monthlyLoanPayment", "Monthly loan cost", a.monthly_debt_service, "currency", "Estimated mortgage payment per month based on total project cost, own payment, interest rate, and loan years.", "neutral"),
       metric("monthlyCashFlow", "Monthly cash flow", a.monthly_cash_flow, "currency", "Estimated money left each month after operating costs and monthly loan payment."),
       metric("grossYield", "Gross yield", a.gross_yield, "percent", "Standard formula: annual rent / purchase price. This ignores costs and financing."),
       metric("netYield", "Net yield", a.net_yield, "percent", "Standard formula: net operating income / total investment. Total investment includes purchase price, purchase costs, and renovation cost."),
@@ -318,8 +323,9 @@ function backendAnalysisToFrontend(response: BackendAnalysis): AnalyzeResponse {
       { label: "Annual rent", value: toNumber(a.annual_rent), format: "currency" },
       { label: "Operating costs", value: -toNumber(a.annual_operating_costs), format: "currency" },
       { label: "Net operating income", value: toNumber(a.net_operating_income), format: "currency" },
-      { label: "Total investment", value: toNumber(a.total_investment), format: "currency" },
-      { label: "Down payment", value: toNumber(a.down_payment), format: "currency" },
+      { label: "Total project cost", value: toNumber(a.total_investment), format: "currency" },
+      { label: "Total cash invested", value: totalCashInvested, format: "currency" },
+      { label: "Own payment", value: toNumber(a.down_payment), format: "currency" },
       { label: "Loan amount", value: toNumber(a.loan_amount), format: "currency" },
       { label: "Monthly loan payment", value: -toNumber(a.monthly_debt_service), format: "currency" },
     ],

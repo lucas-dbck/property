@@ -500,7 +500,9 @@ def test_analysis_exposes_loan_calculation_parts():
     assert response.status_code == 200
     analysis = response.json()["analysis"]
     assert analysis["down_payment"] == 60000
-    assert analysis["loan_amount"] == 240000
+    assert analysis["total_investment"] == 356000
+    assert analysis["total_cash_invested"] == 60000
+    assert analysis["loan_amount"] == 296000
     assert analysis["monthly_debt_service"] > 0
 
 
