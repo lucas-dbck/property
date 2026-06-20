@@ -217,7 +217,8 @@ def enrich_default_assumptions(data: dict[str, Any]) -> dict[str, Any]:
         + as_float(enriched, "renovation_cost")
         + (as_float(enriched, "purchase_costs") or as_float(enriched, "closing_costs"))
     )
-    if project_cost > 0 and as_float(enriched, "down_payment") == 0:
+    manual_monthly_debt_service = as_float(enriched, "monthly_debt_service") or as_float(enriched, "monthly_loan_payment")
+    if project_cost > 0 and as_float(enriched, "down_payment") == 0 and manual_monthly_debt_service == 0:
         enriched["down_payment"] = round(project_cost * 0.2, 2)
 
     if as_float(enriched, "interest_rate") == 0:
@@ -247,12 +248,17 @@ def calculate_roi(data: dict[str, Any]) -> dict[str, Any]:
 
     down_payment = as_float(data, "down_payment")
     loan_amount = as_float(data, "loan_amount")
-    if loan_amount == 0 and total_investment > 0 and down_payment > 0:
-        loan_amount = max(total_investment - down_payment, 0)
-
     interest_rate = as_float(data, "interest_rate")
     loan_years = as_float(data, "loan_years", 25)
     manual_monthly_debt_service = as_float(data, "monthly_debt_service") or as_float(data, "monthly_loan_payment")
+    if loan_amount == 0 and manual_monthly_debt_service > 0 and total_investment > 0 and down_payment == 0:
+        loan_amount = min(
+            infer_loan_amount_from_monthly_payment(manual_monthly_debt_service, interest_rate, loan_years),
+            total_investment,
+        )
+        down_payment = max(total_investment - loan_amount, 0)
+    if loan_amount == 0 and total_investment > 0 and down_payment > 0:
+        loan_amount = max(total_investment - down_payment, 0)
     monthly_debt_service = manual_monthly_debt_service or calculate_monthly_payment(
         loan_amount,
         interest_rate,
@@ -331,6 +337,16 @@ def calculate_monthly_payment(loan_amount: float, annual_interest_rate: float, l
     return loan_amount * (monthly_rate * (1 + monthly_rate) ** number_of_payments) / (
         (1 + monthly_rate) ** number_of_payments - 1
     )
+
+
+def infer_loan_amount_from_monthly_payment(monthly_payment: float, annual_interest_rate: float, loan_years: float) -> float:
+    if monthly_payment <= 0 or loan_years <= 0:
+        return 0
+    monthly_rate = annual_interest_rate / 100 / 12
+    number_of_payments = loan_years * 12
+    if monthly_rate == 0:
+        return monthly_payment * number_of_payments
+    return monthly_payment * (1 - (1 + monthly_rate) ** -number_of_payments) / monthly_rate
 
 
 def percentage(numerator: float, denominator: float) -> float:

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import useSWR from "swr"
 import { AlertCircle, CheckCircle2, Save } from "lucide-react"
@@ -84,6 +84,20 @@ export function AnalyzeWorkspace() {
       if (!title && result.meta.title) setTitle(result.meta.title)
     }
   }
+
+  const handleFieldChange = useCallback((key: string, value: string | number | boolean) => {
+    setField(key, value)
+
+    if (key === "down_payment") {
+      const monthlyPayment = calculateMonthlyPaymentFromInputs({ ...values, down_payment: value })
+      if (monthlyPayment > 0) setField("monthly_debt_service", monthlyPayment)
+    }
+
+    if (key === "monthly_debt_service") {
+      const ownPayment = calculateOwnPaymentFromMonthlyPayment({ ...values, monthly_debt_service: value })
+      if (ownPayment >= 0) setField("down_payment", ownPayment)
+    }
+  }, [setField, values])
 
   const analysisValues = useMemo(() => {
     const next = { ...values }
@@ -203,7 +217,7 @@ export function AnalyzeWorkspace() {
                   ))}
                 </div>
               ) : (
-                <RoiInputForm fields={fields} values={values} status={status} onChange={setField} />
+                <RoiInputForm fields={fields} values={values} status={status} onChange={handleFieldChange} />
               )}
             </CardContent>
           </Card>
@@ -218,6 +232,44 @@ export function AnalyzeWorkspace() {
       </div>
     </div>
   )
+}
+
+function numeric(value: unknown): number {
+  const n = typeof value === "number" ? value : Number(String(value ?? "").replace(/\s/g, "").replace(",", "."))
+  return Number.isFinite(n) ? n : 0
+}
+
+function totalProjectCost(values: Record<string, unknown>): number {
+  return numeric(values.purchase_price) + numeric(values.purchase_costs) + numeric(values.renovation_cost)
+}
+
+function calculateMonthlyPaymentFromInputs(values: Record<string, unknown>): number {
+  const total = totalProjectCost(values)
+  const ownPayment = numeric(values.down_payment)
+  const loanAmount = Math.max(total - ownPayment, 0)
+  const annualRate = numeric(values.interest_rate)
+  const years = numeric(values.loan_years) || 25
+  if (loanAmount <= 0 || years <= 0) return 0
+  const months = years * 12
+  const monthlyRate = annualRate / 100 / 12
+  const payment = monthlyRate === 0
+    ? loanAmount / months
+    : loanAmount * (monthlyRate * (1 + monthlyRate) ** months) / ((1 + monthlyRate) ** months - 1)
+  return Math.round(payment)
+}
+
+function calculateOwnPaymentFromMonthlyPayment(values: Record<string, unknown>): number {
+  const total = totalProjectCost(values)
+  const payment = numeric(values.monthly_debt_service)
+  const annualRate = numeric(values.interest_rate)
+  const years = numeric(values.loan_years) || 25
+  if (total <= 0 || payment <= 0 || years <= 0) return -1
+  const months = years * 12
+  const monthlyRate = annualRate / 100 / 12
+  const loanAmount = monthlyRate === 0
+    ? payment * months
+    : payment * (1 - (1 + monthlyRate) ** -months) / monthlyRate
+  return Math.round(Math.max(total - Math.min(loanAmount, total), 0))
 }
 
 function ImportFeedbackPanel({ feedback }: { feedback: ImportFeedback }) {

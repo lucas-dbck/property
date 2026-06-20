@@ -528,6 +528,30 @@ def test_analysis_allows_manual_monthly_loan_payment():
     assert analysis["monthly_loan_payment"] == 1800
 
 
+def test_analysis_infers_own_payment_from_manual_monthly_loan_payment():
+    response = client.post(
+        "/opportunities/analyze",
+        json={
+            "data": {
+                "city": "Leuven",
+                "area_sqm": 80,
+                "purchase_price": 300000,
+                "interest_rate": 3.5,
+                "loan_years": 25,
+                "monthly_debt_service": 1000,
+            }
+        },
+    )
+
+    assert response.status_code == 200
+    analysis = response.json()["analysis"]
+    assert analysis["total_investment"] == 356000
+    assert analysis["monthly_debt_service"] == 1000
+    assert analysis["loan_amount"] < analysis["total_investment"]
+    assert analysis["down_payment"] > 0
+    assert analysis["loan_amount"] + analysis["down_payment"] == analysis["total_investment"]
+
+
 def test_compare_investment_opportunities():
     register_user()
     token = login_user()
