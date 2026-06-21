@@ -245,6 +245,9 @@ class OpportunityComparisonItem(BaseModel):
     net_yield: float
     monthly_cash_flow: float
     cash_on_cash_return: float
+    cash_required_return: float
+    cash_required: float
+    break_even_own_payment: float
     total_investment: float
 
 

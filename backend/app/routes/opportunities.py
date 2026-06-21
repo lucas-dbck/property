@@ -535,7 +535,7 @@ def compare_opportunities(
             item[1]["roi_score"],
             item[1]["monthly_cash_flow"],
             item[1]["net_yield"],
-            item[1]["cash_on_cash_return"],
+            item[1]["cash_required_return"],
         ),
         reverse=True,
     )
@@ -551,6 +551,9 @@ def compare_opportunities(
             net_yield=analysis["net_yield"],
             monthly_cash_flow=analysis["monthly_cash_flow"],
             cash_on_cash_return=analysis["cash_on_cash_return"],
+            cash_required_return=analysis["cash_required_return"],
+            cash_required=analysis["cash_required"],
+            break_even_own_payment=analysis["break_even_own_payment"],
             total_investment=analysis["total_investment"],
         )
         for index, (opportunity, analysis) in enumerate(analyzed_items)

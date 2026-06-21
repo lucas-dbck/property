@@ -270,19 +270,30 @@ def calculate_roi(data: dict[str, Any]) -> dict[str, Any]:
     annual_cash_flow = net_operating_income - annual_debt_service
     monthly_cash_flow = annual_cash_flow / 12
     cash_invested = down_payment if down_payment > 0 else total_investment
+    annual_negative_cash_flow = max(-annual_cash_flow, 0)
+    cash_required = cash_invested + annual_negative_cash_flow
+    break_even_monthly_debt_service = max(net_operating_income / 12, 0)
+    break_even_loan_amount = min(
+        infer_loan_amount_from_monthly_payment(break_even_monthly_debt_service, interest_rate, loan_years),
+        total_investment,
+    )
+    break_even_down_payment = max(total_investment - break_even_loan_amount, 0)
 
     # Standard property investment formulas:
     # gross yield = annual rent / purchase price
     # net yield = net operating income / total investment
     # leveraged ROI = annual net profit after loan payments / own cash invested
+    # cash-required ROI = annual cash flow / (own cash invested + one year of negative monthly top-ups)
     gross_yield = percentage(annual_rent, purchase_price)
     net_yield = percentage(net_operating_income, total_investment)
     cash_on_cash_return = percentage(annual_cash_flow, cash_invested)
+    cash_required_return = percentage(annual_cash_flow, cash_required)
     inflation_rate = normalized_rate(data, "inflation_rate", 0.015)
     real_cash_on_cash_return = real_return(cash_on_cash_return, inflation_rate)
+    real_cash_required_return = real_return(cash_required_return, inflation_rate)
 
     vacancy_rate = normalized_rate(data, "vacancy_rate", 0)
-    roi_score = score_opportunity(net_yield, cash_on_cash_return, monthly_cash_flow, vacancy_rate)
+    roi_score = score_opportunity(net_yield, cash_required_return, monthly_cash_flow, vacancy_rate)
 
     return {
         "estimated_monthly_rent": rent_estimate.monthly_rent,
@@ -294,6 +305,10 @@ def calculate_roi(data: dict[str, Any]) -> dict[str, Any]:
         "closing_costs": round(purchase_costs, 2),
         "total_investment": round(total_investment, 2),
         "total_cash_invested": round(cash_invested, 2),
+        "annual_negative_cash_flow": round(annual_negative_cash_flow, 2),
+        "cash_required": round(cash_required, 2),
+        "break_even_down_payment": round(break_even_down_payment, 2),
+        "break_even_own_payment": round(break_even_down_payment, 2),
         "annual_operating_costs": round(annual_operating_costs, 2),
         "net_operating_income": round(net_operating_income, 2),
         "monthly_debt_service": round(monthly_debt_service, 2),
@@ -307,13 +322,17 @@ def calculate_roi(data: dict[str, Any]) -> dict[str, Any]:
         "gross_yield": round(gross_yield, 2),
         "net_yield": round(net_yield, 2),
         "cash_on_cash_return": round(cash_on_cash_return, 2),
+        "cash_required_return": round(cash_required_return, 2),
         "inflation_rate": round(inflation_rate * 100, 2),
         "real_cash_on_cash_return": round(real_cash_on_cash_return, 2),
+        "real_cash_required_return": round(real_cash_required_return, 2),
         "roi_score": roi_score,
         "gross_yield_formula": "annual_rent / purchase_price",
         "net_yield_formula": "net_operating_income / total_investment",
         "cash_on_cash_formula": "annual_net_profit_after_loan_payments / own_cash_invested",
+        "cash_required_formula": "annual_net_profit_after_loan_payments / (own_cash_invested + one_year_negative_cash_flow_topups)",
         "real_cash_on_cash_formula": "((1 + leveraged_roi) / (1 + inflation_rate) - 1)",
+        "real_cash_required_formula": "((1 + cash_required_roi) / (1 + inflation_rate) - 1)",
     }
 
 

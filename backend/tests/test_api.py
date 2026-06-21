@@ -548,6 +548,8 @@ def test_analysis_exposes_loan_calculation_parts():
     assert analysis["total_cash_invested"] == 60000
     assert analysis["loan_amount"] == 296000
     assert analysis["monthly_debt_service"] > 0
+    assert analysis["cash_required"] >= analysis["total_cash_invested"]
+    assert "break_even_own_payment" in analysis
 
 
 def test_analysis_allows_manual_monthly_loan_payment():
@@ -609,6 +611,33 @@ def test_inflation_lowers_real_roi():
     analysis = response.json()["analysis"]
     assert analysis["inflation_rate"] == 2.5
     assert analysis["real_cash_on_cash_return"] < analysis["cash_on_cash_return"]
+    assert analysis["real_cash_required_return"] < analysis["cash_required_return"]
+
+
+def test_cash_required_roi_counts_negative_monthly_topups():
+    response = client.post(
+        "/opportunities/analyze",
+        json={
+            "data": {
+                "city": "Leuven",
+                "area_sqm": 80,
+                "purchase_price": 300000,
+                "down_payment": 60000,
+                "monthly_rent": 1000,
+                "monthly_debt_service": 1800,
+                "interest_rate": 3.5,
+                "loan_years": 25,
+            }
+        },
+    )
+
+    assert response.status_code == 200
+    analysis = response.json()["analysis"]
+    assert analysis["monthly_cash_flow"] < 0
+    assert analysis["annual_negative_cash_flow"] == abs(analysis["annual_cash_flow"])
+    assert analysis["cash_required"] == analysis["total_cash_invested"] + analysis["annual_negative_cash_flow"]
+    assert analysis["cash_required_return"] > analysis["cash_on_cash_return"]
+    assert analysis["break_even_own_payment"] > analysis["down_payment"]
 
 
 def test_analysis_infers_own_payment_from_manual_monthly_loan_payment():

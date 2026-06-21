@@ -38,6 +38,9 @@ type BackendCompare = {
     net_yield: number
     monthly_cash_flow: number
     cash_on_cash_return: number
+    cash_required_return: number
+    cash_required: number
+    break_even_own_payment: number
     total_investment: number
   }>
 }
@@ -321,8 +324,11 @@ function backendAnalysisToFrontend(response: BackendAnalysis): AnalyzeResponse {
       sentiment: toNumber(a.monthly_cash_flow) >= 0 ? "positive" : "negative",
     },
     metrics: [
+      metric("cashRequiredReturn", "Cash-required ROI", a.cash_required_return, "percent", "Your practical ROI: annual cash flow divided by own payment plus one year of negative monthly top-ups."),
       metric("cashOnCash", "Cash-on-cash ROI", a.cash_on_cash_return, "percent", "Formula: annual net profit after loan payments / own cash invested x 100. This is the ROI that changes when leverage changes."),
+      metric("breakEvenOwnPayment", "Break-even own payment", a.break_even_own_payment, "currency", "Own payment needed for monthly cash flow to be about zero with the current rent, costs, interest rate, and loan years.", "neutral"),
       metric("realCashOnCash", "Real cash-on-cash ROI", a.real_cash_on_cash_return, "percent", "Cash-on-cash ROI corrected for inflation: (1 + cash-on-cash ROI) / (1 + inflation) - 1."),
+      metric("realCashRequiredReturn", "Real cash-required ROI", a.real_cash_required_return, "percent", "Cash-required ROI corrected for inflation."),
       metric("estimatedMonthlyRent", "Estimated rent", a.estimated_monthly_rent, "currency", "The monthly rent used in the ROI calculation. If you leave rent empty, the app estimates it from city, area, bedrooms, energy score, and condition."),
       metric("monthlyLoanPayment", "Monthly loan cost", a.monthly_debt_service, "currency", "Estimated mortgage payment per month based on total project cost, own payment, interest rate, and loan years.", "neutral"),
       metric("monthlyCashFlow", "Monthly cash flow", a.monthly_cash_flow, "currency", "Estimated money left each month after operating costs and monthly loan payment."),
@@ -336,6 +342,9 @@ function backendAnalysisToFrontend(response: BackendAnalysis): AnalyzeResponse {
       { label: "Net operating income", value: toNumber(a.net_operating_income), format: "currency" },
       { label: "Total project cost", value: toNumber(a.total_investment), format: "currency" },
       { label: "Total cash invested", value: totalCashInvested, format: "currency" },
+      { label: "Yearly negative cash-flow top-up", value: toNumber(a.annual_negative_cash_flow), format: "currency" },
+      { label: "Cash required for ROI", value: toNumber(a.cash_required), format: "currency" },
+      { label: "Break-even own payment", value: toNumber(a.break_even_own_payment), format: "currency" },
       { label: "Own payment", value: toNumber(a.down_payment), format: "currency" },
       { label: "Loan amount", value: toNumber(a.loan_amount), format: "currency" },
       { label: "Monthly loan payment", value: -toNumber(a.monthly_debt_service), format: "currency" },
@@ -428,8 +437,10 @@ function backendTemplateToFrontend(template: { fields: Array<Record<string, unkn
 function backendCompareToFrontend(compare: BackendCompare): CompareResponse {
   return {
     metricColumns: [
+      { key: "cashRequiredReturn", label: "Cash-required ROI", format: "percent" },
       { key: "cashOnCash", label: "Cash-on-cash ROI", format: "percent" },
       { key: "monthlyCashFlow", label: "Monthly cash flow", format: "currency" },
+      { key: "breakEvenOwnPayment", label: "Break-even own payment", format: "currency" },
       { key: "grossYield", label: "Gross yield", format: "percent" },
       { key: "netYield", label: "Net yield", format: "percent" },
       { key: "roiScore", label: "Investment score", format: "number" },
@@ -443,6 +454,8 @@ function backendCompareToFrontend(compare: BackendCompare): CompareResponse {
         grossYield: metric("grossYield", "Gross yield", item.gross_yield, "percent"),
         netYield: metric("netYield", "Net yield", item.net_yield, "percent"),
         cashOnCash: metric("cashOnCash", "Cash-on-cash ROI", item.cash_on_cash_return, "percent"),
+        cashRequiredReturn: metric("cashRequiredReturn", "Cash-required ROI", item.cash_required_return, "percent"),
+        breakEvenOwnPayment: metric("breakEvenOwnPayment", "Break-even own payment", item.break_even_own_payment, "currency", undefined, "neutral"),
       },
     })),
   }

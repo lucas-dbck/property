@@ -9,7 +9,7 @@ import { formatCurrency } from "@/lib/format"
 import type { Opportunity } from "@/lib/api/types"
 
 // Metric keys we like to surface on the card, in priority order.
-const PREFERRED = ["cashOnCash", "realCashOnCash", "monthlyCashFlow", "netYield", "grossYield"]
+const PREFERRED = ["cashRequiredReturn", "cashOnCash", "monthlyCashFlow", "breakEvenOwnPayment", "netYield", "grossYield"]
 
 export function OpportunityCard({
   opportunity,

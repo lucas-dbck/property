@@ -72,11 +72,19 @@ export function demoAnalyze(values: InputValues): AnalyzeResponse {
   const annualCashFlow = noi - annualDebtService
   const monthlyCashFlow = annualCashFlow / 12
   const cashInvested = downPayment
+  const annualNegativeCashFlow = Math.max(-annualCashFlow, 0)
+  const cashRequired = cashInvested + annualNegativeCashFlow
+  const breakEvenMonthlyDebtService = Math.max(noi / 12, 0)
+  const breakEvenLoanAmount = term > 0 && rate > 0
+    ? breakEvenMonthlyDebtService * (1 - Math.pow(1 + rate, -term)) / rate
+    : breakEvenMonthlyDebtService * Math.max(term, 0)
+  const breakEvenOwnPayment = Math.max(totalInvestment - Math.min(breakEvenLoanAmount, totalInvestment), 0)
 
   const grossYield = price > 0 ? (grossAnnualRent / price) * 100 : 0
   const netYield = totalInvestment > 0 ? (noi / totalInvestment) * 100 : 0
   const capRate = price > 0 ? (noi / price) * 100 : 0
   const cashOnCash = cashInvested > 0 ? (annualCashFlow / cashInvested) * 100 : 0
+  const cashRequiredReturn = cashRequired > 0 ? (annualCashFlow / cashRequired) * 100 : 0
   const paybackYears = annualCashFlow > 0 ? cashInvested / annualCashFlow : 0
 
   const sentimentFor = (v: number): "positive" | "negative" | "neutral" =>
@@ -91,7 +99,9 @@ export function demoAnalyze(values: InputValues): AnalyzeResponse {
       { key: "grossYield", label: "Gross yield", value: grossYield, format: "percent", sentiment: "neutral", description: "Annual rent ÷ purchase price." },
       { key: "netYield", label: "Net yield", value: netYield, format: "percent", sentiment: sentimentFor(netYield - 3), description: "NOI ÷ total invested." },
       { key: "capRate", label: "Cap rate", value: capRate, format: "percent", sentiment: "neutral", description: "NOI ÷ property value." },
+      { key: "cashRequiredReturn", label: "Cash-required ROI", value: cashRequiredReturn, format: "percent", sentiment: sentimentFor(cashRequiredReturn), description: "Annual cash flow divided by own payment plus one year of negative cash-flow top-ups." },
       { key: "cashOnCash", label: "Cash-on-cash ROI", value: cashOnCash, format: "percent", sentiment: sentimentFor(cashOnCash), description: "Formula: annual net profit after loan payments / own cash invested x 100." },
+      { key: "breakEvenOwnPayment", label: "Break-even own payment", value: breakEvenOwnPayment, format: "currency", sentiment: "neutral", description: "Own payment needed for monthly cash flow to be about zero." },
       { key: "monthlyCashFlow", label: "Monthly cash flow", value: monthlyCashFlow, format: "currency", sentiment: sentimentFor(monthlyCashFlow), description: "After mortgage & costs." },
       { key: "payback", label: "Payback", value: paybackYears, format: "years", sentiment: paybackYears > 0 && paybackYears < 25 ? "positive" : "negative", description: "Years to recoup cash invested." },
     ],
@@ -103,6 +113,9 @@ export function demoAnalyze(values: InputValues): AnalyzeResponse {
       { label: "Annual cash flow", value: annualCashFlow, format: "currency" },
       { label: "Total project cost", value: totalInvestment, format: "currency" },
       { label: "Total cash invested", value: cashInvested, format: "currency" },
+      { label: "Yearly negative cash-flow top-up", value: annualNegativeCashFlow, format: "currency" },
+      { label: "Cash required for ROI", value: cashRequired, format: "currency" },
+      { label: "Break-even own payment", value: breakEvenOwnPayment, format: "currency" },
       { label: "Loan amount", value: loanAmount, format: "currency" },
     ],
   }
@@ -240,10 +253,12 @@ export const demoApi = {
   },
   compare: (): CompareResponse => {
     const cols = [
+      { key: "cashRequiredReturn", label: "Cash-required ROI", format: "percent" as const },
       { key: "grossYield", label: "Gross yield", format: "percent" as const },
       { key: "netYield", label: "Net yield", format: "percent" as const },
       { key: "cashOnCash", label: "Cash-on-cash ROI", format: "percent" as const },
       { key: "monthlyCashFlow", label: "Monthly cash flow", format: "currency" as const },
+      { key: "breakEvenOwnPayment", label: "Break-even own payment", format: "currency" as const },
       { key: "payback", label: "Payback", format: "years" as const },
     ]
     return {
