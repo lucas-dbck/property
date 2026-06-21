@@ -15,6 +15,7 @@ type Point = {
   price: number
   rent: number
   grossYield: number
+  cashOnCash: number
   lat: number
   lng: number
   listingUrl?: string
@@ -143,7 +144,7 @@ export function OpportunitiesMap({ opportunities }: { opportunities: Opportunity
 function MapMarker({ point, index, total }: { point: Point; index: number; total: number }) {
   const { x, y } = project(point.lat, point.lng)
   const offset = total > 1 ? ((index % 5) - 2) * 3 : 0
-  const strong = point.grossYield >= 5
+  const strong = point.cashOnCash >= 5
 
   return (
     <Link
@@ -153,10 +154,10 @@ function MapMarker({ point, index, total }: { point: Point; index: number; total
         strong ? "text-emerald-700" : "text-primary",
       )}
       style={{ left: `${clamp(x + offset, 5, 95)}%`, top: `${clamp(y + offset, 5, 95)}%` }}
-      title={`${point.title} - ${formatCurrency(point.price)}`}
+      title={`${point.title} - cash-on-cash ${formatPercent(point.cashOnCash)}`}
     >
       <span className={cn("rounded-md px-2 py-1 text-xs font-semibold shadow-sm", strong ? "bg-emerald-600 text-white" : "bg-primary text-primary-foreground")}>
-        {formatPercent(point.grossYield)}
+        {formatPercent(point.cashOnCash)}
       </span>
       <span className="mt-1 flex size-4 rotate-45 rounded-sm bg-current shadow-md" />
       <span className="pointer-events-none absolute bottom-full mb-8 hidden min-w-52 rounded-md border bg-popover p-3 text-popover-foreground shadow-lg group-hover:block">
@@ -165,6 +166,8 @@ function MapMarker({ point, index, total }: { point: Point; index: number; total
         <span className="mt-2 grid grid-cols-2 gap-2 text-xs">
           <span>Price<br /><strong>{formatCurrency(point.price)}</strong></span>
           <span>Rent<br /><strong>{formatCurrency(point.rent)}</strong></span>
+          <span>Cash-on-cash<br /><strong>{formatPercent(point.cashOnCash)}</strong></span>
+          <span>Gross yield<br /><strong>{formatPercent(point.grossYield)}</strong></span>
         </span>
       </span>
     </Link>
@@ -179,11 +182,13 @@ function ListingMapRow({ point }: { point: Point }) {
           <p className="truncate text-sm font-semibold">{point.title}</p>
           <p className="text-xs text-muted-foreground">{[point.city, point.postcode].filter(Boolean).join(", ")}</p>
         </div>
-        <span className="rounded bg-secondary px-2 py-1 text-xs font-medium">{formatPercent(point.grossYield)}</span>
+        <span className="rounded bg-secondary px-2 py-1 text-xs font-medium">{formatPercent(point.cashOnCash)}</span>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
         <span>Price<br /><strong className="text-foreground">{formatCurrency(point.price)}</strong></span>
         <span>Rent<br /><strong className="text-foreground">{formatCurrency(point.rent)}</strong></span>
+        <span>Cash-on-cash ROI<br /><strong className="text-foreground">{formatPercent(point.cashOnCash)}</strong></span>
+        <span>Gross yield<br /><strong className="text-foreground">{formatPercent(point.grossYield)}</strong></span>
       </div>
       <div className="mt-3 flex gap-2">
         <Button asChild size="sm" variant="outline" className="h-8">
@@ -233,9 +238,10 @@ function toPoint(opportunity: Opportunity): Point | null {
   const coords = coordinatesFor(city, postcode)
   if (!coords) return null
 
-  const price = toNumber(values.purchase_price || values.price)
-  const rent = toNumber(values.monthly_rent || values.estimated_rent || values.expected_monthly_rent)
+  const price = toNumber(values.purchase_price || values.purchasePrice || values.price)
+  const rent = toNumber(values.monthly_rent || values.monthlyRent || values.estimated_rent || values.expected_monthly_rent)
   const grossYield = price > 0 && rent > 0 ? (rent * 12 / price) * 100 : 0
+  const cashOnCash = metricValue(opportunity, "cashOnCash")
 
   return {
     id: opportunity.id,
@@ -245,10 +251,16 @@ function toPoint(opportunity: Opportunity): Point | null {
     price,
     rent,
     grossYield,
+    cashOnCash,
     lat: coords.lat,
     lng: coords.lng,
     listingUrl,
   }
+}
+
+function metricValue(opportunity: Opportunity, key: string): number {
+  const value = opportunity.analysis?.metrics.find((metric) => metric.key === key)?.value
+  return Number.isFinite(value) ? Number(value) : 0
 }
 
 function parseLocationFromImmowebUrl(url: string): { city?: string; postcode?: string } {

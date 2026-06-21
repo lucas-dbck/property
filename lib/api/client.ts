@@ -321,8 +321,8 @@ function backendAnalysisToFrontend(response: BackendAnalysis): AnalyzeResponse {
       sentiment: toNumber(a.monthly_cash_flow) >= 0 ? "positive" : "negative",
     },
     metrics: [
-      metric("cashOnCash", "Leveraged ROI", a.cash_on_cash_return, "percent", "Formula: annual net profit after loan payments / own cash invested x 100. This is the ROI that changes when leverage changes."),
-      metric("realCashOnCash", "Real leveraged ROI", a.real_cash_on_cash_return, "percent", "Leveraged ROI corrected for inflation: (1 + leveraged ROI) / (1 + inflation) - 1."),
+      metric("cashOnCash", "Cash-on-cash ROI", a.cash_on_cash_return, "percent", "Formula: annual net profit after loan payments / own cash invested x 100. This is the ROI that changes when leverage changes."),
+      metric("realCashOnCash", "Real cash-on-cash ROI", a.real_cash_on_cash_return, "percent", "Cash-on-cash ROI corrected for inflation: (1 + cash-on-cash ROI) / (1 + inflation) - 1."),
       metric("estimatedMonthlyRent", "Estimated rent", a.estimated_monthly_rent, "currency", "The monthly rent used in the ROI calculation. If you leave rent empty, the app estimates it from city, area, bedrooms, energy score, and condition."),
       metric("monthlyLoanPayment", "Monthly loan cost", a.monthly_debt_service, "currency", "Estimated mortgage payment per month based on total project cost, own payment, interest rate, and loan years.", "neutral"),
       metric("monthlyCashFlow", "Monthly cash flow", a.monthly_cash_flow, "currency", "Estimated money left each month after operating costs and monthly loan payment."),
@@ -353,6 +353,19 @@ function backendOpportunityToFrontend(item: BackendOpportunity): Opportunity {
     createdAt: item.created_at,
     updatedAt: item.updated_at,
   }
+}
+
+async function backendOpportunityWithAnalysis(item: BackendOpportunity): Promise<Opportunity> {
+  const opportunity = backendOpportunityToFrontend(item)
+  try {
+    opportunity.analysis = backendAnalysisToFrontend(await request<BackendAnalysis>("/opportunities/analyze", {
+      method: "POST",
+      body: { data: inputToBackendData(opportunity.values) },
+    }))
+  } catch {
+    // Keep the overview usable even if one saved listing has incomplete inputs.
+  }
+  return opportunity
 }
 
 function backendImportToFrontend(item: BackendOpportunity): ImmowebImportResponse {
@@ -415,7 +428,7 @@ function backendTemplateToFrontend(template: { fields: Array<Record<string, unkn
 function backendCompareToFrontend(compare: BackendCompare): CompareResponse {
   return {
     metricColumns: [
-      { key: "cashOnCash", label: "Leveraged ROI", format: "percent" },
+      { key: "cashOnCash", label: "Cash-on-cash ROI", format: "percent" },
       { key: "monthlyCashFlow", label: "Monthly cash flow", format: "currency" },
       { key: "grossYield", label: "Gross yield", format: "percent" },
       { key: "netYield", label: "Net yield", format: "percent" },
@@ -429,7 +442,7 @@ function backendCompareToFrontend(compare: BackendCompare): CompareResponse {
         monthlyCashFlow: metric("monthlyCashFlow", "Monthly cash flow", item.monthly_cash_flow, "currency"),
         grossYield: metric("grossYield", "Gross yield", item.gross_yield, "percent"),
         netYield: metric("netYield", "Net yield", item.net_yield, "percent"),
-        cashOnCash: metric("cashOnCash", "Leveraged ROI", item.cash_on_cash_return, "percent"),
+        cashOnCash: metric("cashOnCash", "Cash-on-cash ROI", item.cash_on_cash_return, "percent"),
       },
     })),
   }
@@ -501,7 +514,7 @@ export const api = {
 
   listOpportunities: () =>
     withFallback(
-      async () => (await request<BackendOpportunity[]>("/opportunities")).map(backendOpportunityToFrontend),
+      async () => Promise.all((await request<BackendOpportunity[]>("/opportunities")).map(backendOpportunityWithAnalysis)),
       () => demoApi.listOpportunities(),
     ),
 
