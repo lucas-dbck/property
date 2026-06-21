@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { MapPin } from "lucide-react"
+import { MapPin, Trash2 } from "lucide-react"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { MetricValue } from "@/components/metric-value"
@@ -9,13 +9,21 @@ import { formatCurrency } from "@/lib/format"
 import type { Opportunity } from "@/lib/api/types"
 
 // Metric keys we like to surface on the card, in priority order.
-const PREFERRED = ["cashOnCash", "netYield", "grossYield", "monthlyCashFlow"]
+const PREFERRED = ["cashOnCash", "realCashOnCash", "monthlyCashFlow", "netYield", "grossYield"]
 
-export function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
+export function OpportunityCard({
+  opportunity,
+  onDelete,
+  isDeleting = false,
+}: {
+  opportunity: Opportunity
+  onDelete?: () => void
+  isDeleting?: boolean
+}) {
   const metrics = opportunity.analysis?.metrics ?? []
-  const highlight = PREFERRED.map((key) => metrics.find((metric) => metric.key === key))
+  const highlights = PREFERRED.map((key) => metrics.find((metric) => metric.key === key))
     .filter((metric): metric is NonNullable<typeof metric> => Boolean(metric))
-    .slice(0, 1)
+    .slice(0, 4)
 
   const price = Number(opportunity.values.purchase_price || opportunity.values.purchasePrice || 0)
   const rent = Number(opportunity.values.monthly_rent || opportunity.values.estimated_rent || opportunity.values.monthlyRent || 0)
@@ -48,7 +56,7 @@ export function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
         )}
       </CardHeader>
       <CardContent className="flex-1">
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <div className="space-y-0.5">
             <p className="text-xs text-muted-foreground">Price</p>
             <p className="font-semibold tabular-nums">{price > 0 ? formatCurrency(price) : "-"}</p>
@@ -57,7 +65,7 @@ export function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
             <p className="text-xs text-muted-foreground">Monthly rent</p>
             <p className="font-semibold tabular-nums">{rent > 0 ? formatCurrency(rent) : "-"}</p>
           </div>
-          {highlight.map((metric) => (
+          {highlights.map((metric) => (
             <div key={metric.key} className="space-y-0.5">
               <p className="truncate text-xs text-muted-foreground">{metric.label}</p>
               <MetricValue value={metric.value} format={metric.format} sentiment={metric.sentiment} />
@@ -69,6 +77,19 @@ export function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
         <Button asChild variant="secondary" size="sm" className="flex-1">
           <Link href={`/analyze?id=${opportunity.id}`}>Open & edit</Link>
         </Button>
+        {onDelete && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="text-destructive hover:text-destructive"
+            disabled={isDeleting}
+            onClick={onDelete}
+          >
+            <Trash2 className="size-4" />
+            Delete
+          </Button>
+        )}
       </CardFooter>
     </Card>
   )

@@ -1,8 +1,10 @@
 "use client"
 
 import Link from "next/link"
+import { useState } from "react"
 import useSWR from "swr"
 import { Plus, Scale, Building2 } from "lucide-react"
+import { toast } from "sonner"
 import { api } from "@/lib/api/client"
 import { PageHeader } from "@/components/page-header"
 import { OpportunityCard } from "@/components/opportunities/opportunity-card"
@@ -11,7 +13,27 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription, EmptyContent } from "@/components/ui/empty"
 
 export default function DashboardPage() {
-  const { data, isLoading } = useSWR("opportunities", () => api.listOpportunities())
+  const { data, isLoading, mutate } = useSWR("opportunities", () => api.listOpportunities())
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  async function handleDelete(id: string, title: string) {
+    if (!window.confirm(`Delete "${title}" from your dashboard?`)) {
+      return
+    }
+
+    setDeletingId(id)
+    try {
+      await api.deleteOpportunity(id)
+      await mutate((current) => current?.filter((opportunity) => opportunity.id !== id) ?? [], {
+        revalidate: false,
+      })
+      toast.success("Property deleted.")
+    } catch (error) {
+      toast.error("Could not delete this property.")
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   return (
     <div>
@@ -66,7 +88,12 @@ export default function DashboardPage() {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {data.map((op) => (
-              <OpportunityCard key={op.id} opportunity={op} />
+              <OpportunityCard
+                key={op.id}
+                opportunity={op}
+                isDeleting={deletingId === op.id}
+                onDelete={() => handleDelete(op.id, op.title)}
+              />
             ))}
           </div>
         )}
