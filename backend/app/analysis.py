@@ -210,7 +210,7 @@ def enrich_default_assumptions(data: dict[str, Any]) -> dict[str, Any]:
     if as_float(enriched, "annual_operating_costs") == 0 and as_float(enriched, "operating_costs") == 0:
         rent_estimate = estimate_monthly_rent(enriched)
         annual_rent = rent_estimate.monthly_rent * 12
-        operating_cost_rate = normalized_rate(enriched, "operating_cost_rate", 0.15)
+        operating_cost_rate = normalized_rate(enriched, "operating_cost_rate", 0.10)
         enriched["annual_operating_costs"] = round(max(annual_rent * operating_cost_rate, 1200), 2)
 
     project_cost = (
@@ -223,13 +223,13 @@ def enrich_default_assumptions(data: dict[str, Any]) -> dict[str, Any]:
         enriched["down_payment"] = round(project_cost * 0.2, 2)
 
     if as_float(enriched, "interest_rate") == 0:
-        enriched["interest_rate"] = 3.5
+        enriched["interest_rate"] = 2.5
 
     if as_float(enriched, "loan_years") == 0:
         enriched["loan_years"] = 25
 
     if "vacancy_rate" not in enriched or enriched.get("vacancy_rate") in (None, ""):
-        enriched["vacancy_rate"] = 0.05
+        enriched["vacancy_rate"] = 0
 
     return enriched
 
@@ -278,7 +278,7 @@ def calculate_roi(data: dict[str, Any]) -> dict[str, Any]:
     gross_yield = percentage(annual_rent, purchase_price)
     net_yield = percentage(net_operating_income, total_investment)
     cash_on_cash_return = percentage(annual_cash_flow, cash_invested)
-    inflation_rate = normalized_rate(data, "inflation_rate", 0.025)
+    inflation_rate = normalized_rate(data, "inflation_rate", 0.015)
     real_cash_on_cash_return = real_return(cash_on_cash_return, inflation_rate)
 
     vacancy_rate = normalized_rate(data, "vacancy_rate", 0)
@@ -322,7 +322,7 @@ def get_annual_operating_costs(data: dict[str, Any], annual_rent: float, monthly
     if bucket > 0:
         return bucket
 
-    operating_cost_rate = normalized_rate(data, "operating_cost_rate", 0.15)
+    operating_cost_rate = normalized_rate(data, "operating_cost_rate", 0.10)
     return max(annual_rent * operating_cost_rate, 1200)
 
 

@@ -163,9 +163,11 @@ def add_financing_defaults(extracted: dict[str, Any]) -> None:
         purchase_costs = as_number(extracted.get("purchase_costs")) or 0
         renovation_cost = as_number(extracted.get("renovation_cost")) or 0
         extracted["down_payment"] = round((purchase_price + purchase_costs + renovation_cost) * 0.2, 2)
-    extracted.setdefault("interest_rate", 3.5)
+    extracted.setdefault("interest_rate", 2.5)
     extracted.setdefault("loan_years", 25)
-    extracted.setdefault("vacancy_rate", 0.05)
+    extracted.setdefault("vacancy_rate", 0)
+    extracted.setdefault("operating_cost_rate", 0.10)
+    extracted.setdefault("inflation_rate", 0.015)
 
 
 def add_estimated_rent(extracted: dict[str, Any]) -> None:

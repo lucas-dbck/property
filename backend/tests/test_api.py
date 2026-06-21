@@ -367,6 +367,11 @@ def test_read_opportunity_input_template():
     purchase_price = next(field for field in body["fields"] if field["key"] == "purchase_price")
     assert purchase_price["imported"] is True
     assert purchase_price["required_for_roi"] is True
+    defaults = {field["key"]: field.get("default") for field in body["fields"]}
+    assert defaults["vacancy_rate"] == 0
+    assert defaults["inflation_rate"] == 1.5
+    assert defaults["interest_rate"] == 2.5
+    assert defaults["operating_cost_rate"] == 10
 
 
 def test_quick_analyze_opportunity_inputs():
